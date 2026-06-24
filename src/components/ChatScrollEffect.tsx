@@ -80,13 +80,15 @@ export function ChatScrollEffect({ messages, speed, setSpeed, theme, setTheme }:
   // Click to Rewind
   const handleBubbleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     e.stopPropagation();
-    const el = e.currentTarget;
-    const offsetTop = el.offsetTop;
-    const clientHeight = el.clientHeight;
     
-    // Tính toán để bong bóng nằm ngay giữa màn hình
-    const targetOffset = (window.innerHeight / 2) - offsetTop - (clientHeight / 2);
-    setOffset(targetOffset);
+    // Lấy tọa độ Y của điểm click chuột trên màn hình
+    const clickY = e.clientY;
+    const screenCenterY = window.innerHeight / 2;
+    
+    // Tính toán khoảng cách cần dịch chuyển để điểm click nằm ngay giữa màn hình
+    const deltaY = screenCenterY - clickY;
+    
+    setOffset((prev) => prev + deltaY);
   };
 
   return (
