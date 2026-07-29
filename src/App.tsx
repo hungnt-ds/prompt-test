@@ -43,7 +43,7 @@ function App() {
             variant="ghost" 
             size="icon"
             onClick={handleBack}
-            className={`absolute top-4 left-4 transition-colors z-50 w-12 h-12 rounded-full ${
+            className={`absolute top-4 left-16 md:left-4 transition-colors z-50 w-12 h-12 rounded-full ${
               theme === 'dark' 
                 ? 'text-white/50 hover:text-white hover:bg-white/10' 
                 : 'text-black/50 hover:text-black hover:bg-black/10'

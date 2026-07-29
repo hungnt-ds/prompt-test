@@ -4,14 +4,11 @@ import { cn } from "@/lib/utils";
 import { useSpeech } from "@/hooks/useSpeech";
 import { useSpeechSettings, DEFAULT_RATE, DEFAULT_PITCH } from "@/hooks/useSpeechSettings";
 
-/** Rank English voices first, then everything else, alphabetically within each group. */
+/** Chỉ giữ giọng tiếng Anh (en-US, en-GB…), sắp theo tên. */
 function sortVoices(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice[] {
-  return [...voices].sort((a, b) => {
-    const ae = a.lang.startsWith("en") ? 0 : 1;
-    const be = b.lang.startsWith("en") ? 0 : 1;
-    if (ae !== be) return ae - be;
-    return a.name.localeCompare(b.name);
-  });
+  return voices
+    .filter(v => v.lang.toLowerCase().startsWith("en"))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** Gear button + popover to pick the speech voice, rate and pitch (persisted). */
@@ -43,8 +40,8 @@ export function VoiceSettings() {
         className={cn(
           "flex items-center justify-center w-10 h-10 rounded-lg border transition-all active:scale-95",
           open
-            ? "border-zinc-600 bg-zinc-800 text-zinc-100"
-            : "border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-zinc-100 hover:border-zinc-600"
+            ? "border-slate-500 dark:border-slate-600 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+            : "border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:border-slate-500 dark:hover:border-slate-600"
         )}
       >
         <Settings2 className="w-4 h-4" />
@@ -57,15 +54,15 @@ export function VoiceSettings() {
 
           <div
             ref={panelRef}
-            className="absolute right-0 top-12 z-50 w-[min(92vw,20rem)] rounded-2xl border border-zinc-800 bg-[#0c0c0e] shadow-2xl shadow-black/60 p-4 space-y-4"
+            className="absolute right-0 top-12 z-50 w-[min(92vw,20rem)] rounded-2xl border border-slate-300 dark:border-slate-800 bg-white dark:bg-[#0d1424] shadow-2xl shadow-black/60 p-4 space-y-4"
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-black uppercase tracking-[0.15em] text-zinc-400">
+              <h3 className="text-xs font-black uppercase tracking-[0.15em] text-slate-600 dark:text-slate-400">
                 Cài đặt giọng đọc
               </h3>
               <button
                 onClick={() => setOpen(false)}
-                className="text-zinc-500 hover:text-zinc-200 transition-colors"
+                className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -73,11 +70,11 @@ export function VoiceSettings() {
 
             {/* Voice picker */}
             <label className="block space-y-1.5">
-              <span className="text-[11px] font-semibold text-zinc-500">Giọng</span>
+              <span className="text-[11px] font-semibold text-slate-500">Giọng</span>
               <select
                 value={voiceURI ?? ""}
                 onChange={e => setVoiceURI(e.target.value || null)}
-                className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-zinc-600 focus:outline-none"
+                className="w-full rounded-lg border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none"
               >
                 <option value="">Tự động (giọng tiếng Anh)</option>
                 {sorted.map(v => (
@@ -87,8 +84,10 @@ export function VoiceSettings() {
                 ))}
               </select>
               {sorted.length === 0 && (
-                <span className="block text-[11px] text-amber-400">
-                  Thiết bị chưa tải giọng nào. Thử tải lại trang.
+                <span className="block text-[11px] text-amber-600 dark:text-amber-400">
+                  {voices.length === 0
+                    ? "Thiết bị chưa tải giọng nào. Thử tải lại trang."
+                    : "Thiết bị không có giọng tiếng Anh nào."}
                 </span>
               )}
             </label>
@@ -96,8 +95,8 @@ export function VoiceSettings() {
             {/* Rate */}
             <label className="block space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-zinc-500">Tốc độ</span>
-                <span className="text-[11px] font-mono text-zinc-400">{rate.toFixed(2)}×</span>
+                <span className="text-[11px] font-semibold text-slate-500">Tốc độ</span>
+                <span className="text-[11px] font-mono text-slate-600 dark:text-slate-400">{rate.toFixed(2)}×</span>
               </div>
               <input
                 type="range"
@@ -113,8 +112,8 @@ export function VoiceSettings() {
             {/* Pitch */}
             <label className="block space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-zinc-500">Cao độ</span>
-                <span className="text-[11px] font-mono text-zinc-400">{pitch.toFixed(2)}</span>
+                <span className="text-[11px] font-semibold text-slate-500">Cao độ</span>
+                <span className="text-[11px] font-mono text-slate-600 dark:text-slate-400">{pitch.toFixed(2)}</span>
               </div>
               <input
                 type="range"
@@ -131,7 +130,7 @@ export function VoiceSettings() {
             <div className="flex items-center gap-2 pt-1">
               <button
                 onClick={() => speak("The quick brown fox jumps over the lazy dog.", "voice-test")}
-                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold bg-zinc-100 text-zinc-900 hover:bg-white active:scale-95 transition-all"
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-500 dark:bg-blue-600 dark:text-white dark:hover:bg-blue-500 active:scale-95 transition-all"
               >
                 <Volume2 className="w-4 h-4" />
                 Nghe thử
@@ -140,7 +139,7 @@ export function VoiceSettings() {
                 onClick={reset}
                 disabled={isDefault}
                 title="Khôi phục mặc định"
-                className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:border-zinc-600 transition-all disabled:opacity-40 disabled:hover:text-zinc-400 disabled:hover:border-zinc-800"
+                className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border border-slate-300 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:border-slate-500 dark:hover:border-slate-600 transition-all disabled:opacity-40 disabled:hover:text-slate-600 dark:disabled:hover:text-slate-400 disabled:hover:border-slate-300 dark:disabled:hover:border-slate-800"
               >
                 <RotateCcw className="w-4 h-4" />
               </button>

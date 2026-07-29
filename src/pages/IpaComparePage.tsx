@@ -4,7 +4,7 @@ import { ArrowLeft, Volume2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSpeech } from "@/hooks/useSpeech";
 import { IPA_PAIRS, IPA_SOUND_BY_ID, type IpaSound } from "@/data/ipa";
-import { CATEGORY_ACCENT } from "@/components/ipa/SoundCard";
+import { CATEGORY_ACCENT } from "@/components/ipa/accents";
 import { VoiceSettings } from "@/components/ipa/VoiceSettings";
 
 interface ResolvedPair {
@@ -44,14 +44,14 @@ export function IpaComparePage() {
   const [current, setCurrent] = useState<ResolvedPair>(initial);
 
   return (
-    <div className="h-screen flex flex-col bg-[#09090b] text-zinc-100">
-      <header className="h-16 flex items-center gap-3 px-4 md:px-6 shrink-0 border-b border-zinc-800/60">
-        <Link to="/ipa" className="flex items-center gap-2 text-sm font-medium text-zinc-400 hover:text-zinc-100 transition-colors">
+    <div className="h-screen flex flex-col bg-slate-100 dark:bg-[#0b1120] text-slate-900 dark:text-slate-100">
+      <header className="h-16 flex items-center gap-3 pl-16 pr-4 md:px-6 shrink-0 border-b border-slate-300/60 dark:border-slate-800/60">
+        <Link to="/ipa" className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors">
           <ArrowLeft className="w-4 h-4" />
           <span className="hidden sm:inline">Bảng IPA</span>
         </Link>
-        <span className="text-zinc-700">/</span>
-        <h1 className="text-[15px] font-semibold text-zinc-100">So sánh âm</h1>
+        <span className="text-slate-700">/</span>
+        <h1 className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">So sánh âm</h1>
         <div className="ml-auto">
           <VoiceSettings />
         </div>
@@ -61,7 +61,7 @@ export function IpaComparePage() {
         <div className="max-w-3xl mx-auto p-4 md:p-8 space-y-8">
           {/* Pair picker */}
           <section className="space-y-3">
-            <h2 className="text-xs font-black uppercase tracking-[0.2em] text-zinc-500">Chọn cặp âm</h2>
+            <h2 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Chọn cặp âm</h2>
             <div className="flex flex-wrap gap-2">
               {IPA_PAIRS.map(p => {
                 const active = current.a.id === p.a && current.b.id === p.b;
@@ -72,8 +72,8 @@ export function IpaComparePage() {
                     className={cn(
                       "px-3 py-1.5 rounded-lg text-sm font-bold border transition-all",
                       active
-                        ? "bg-blue-500/10 border-blue-500/50 text-blue-300"
-                        : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-600"
+                        ? "bg-blue-500/10 border-blue-500/50 text-blue-700 dark:text-blue-300"
+                        : "bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-500 dark:hover:border-slate-600"
                     )}
                   >
                     /{IPA_SOUND_BY_ID[p.a].symbol}/ vs /{IPA_SOUND_BY_ID[p.b].symbol}/
@@ -93,23 +93,23 @@ export function IpaComparePage() {
                   "flex flex-col items-center justify-center gap-1 py-6 rounded-2xl border transition-all active:scale-95",
                   speaking === s.id
                     ? "border-blue-500/60 ring-2 ring-blue-500/30 bg-blue-500/10"
-                    : "border-zinc-800 bg-zinc-900/60 hover:border-zinc-600"
+                    : "border-slate-300 dark:border-slate-800 bg-slate-100 dark:bg-slate-900/60 hover:border-slate-500 dark:hover:border-slate-600"
                 )}
               >
                 <span className={cn("text-4xl font-bold", CATEGORY_ACCENT[s.category])}>/{s.symbol}/</span>
-                <span className="text-xs text-zinc-500">{s.example}</span>
-                <Volume2 className={cn("w-4 h-4 mt-1", speaking === s.id ? "text-blue-400 animate-pulse" : "text-zinc-600")} />
+                <span className="text-xs text-slate-500">{s.example}</span>
+                <Volume2 className={cn("w-4 h-4 mt-1", speaking === s.id ? "text-blue-600 dark:text-blue-400 animate-pulse" : "text-slate-400 dark:text-slate-600")} />
               </button>
             ))}
           </section>
 
           {/* Minimal pairs */}
           <section className="space-y-3">
-            <h2 className="text-xs font-black uppercase tracking-[0.2em] text-zinc-500">Cặp từ tối thiểu</h2>
-            <p className="text-xs text-zinc-500">Nghe lần lượt hai từ và tập phân biệt sự khác nhau của âm.</p>
-            <div className="rounded-2xl border border-zinc-800 overflow-hidden divide-y divide-zinc-800/60">
+            <h2 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Cặp từ tối thiểu</h2>
+            <p className="text-xs text-slate-500">Nghe lần lượt hai từ và tập phân biệt sự khác nhau của âm.</p>
+            <div className="rounded-2xl border border-slate-300 dark:border-slate-800 overflow-hidden divide-y divide-slate-800/60">
               {current.pairs.map(([wa, wb], i) => (
-                <div key={i} className="grid grid-cols-2 divide-x divide-zinc-800/60">
+                <div key={i} className="grid grid-cols-2 divide-x divide-slate-800/60">
                   {[wa, wb].map((word, col) => (
                     <button
                       key={col}
@@ -117,12 +117,12 @@ export function IpaComparePage() {
                       className={cn(
                         "flex items-center justify-between gap-2 px-4 py-3 text-left transition-colors",
                         speaking === `${i}-${col}-${word}`
-                          ? "bg-blue-500/10 text-blue-200"
-                          : "hover:bg-zinc-800/50 text-zinc-200"
+                          ? "bg-blue-500/10 text-blue-800 dark:text-blue-200"
+                          : "hover:bg-slate-800/50 text-slate-800 dark:text-slate-200"
                       )}
                     >
                       <span className="text-sm font-medium">{word}</span>
-                      <Volume2 className={cn("w-4 h-4 shrink-0", speaking === `${i}-${col}-${word}` ? "text-blue-400 animate-pulse" : "text-zinc-700")} />
+                      <Volume2 className={cn("w-4 h-4 shrink-0", speaking === `${i}-${col}-${word}` ? "text-blue-600 dark:text-blue-400 animate-pulse" : "text-slate-700")} />
                     </button>
                   ))}
                 </div>
