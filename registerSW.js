@@ -1,0 +1,1 @@
+if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/prompt-test/sw.js', { scope: '/prompt-test/' })})}
