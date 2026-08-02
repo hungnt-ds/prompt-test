@@ -568,6 +568,77 @@ export async function importMarkdownFiles(
   return (await request<MultiImportResult>(`/api/import?mode=${mode}`, { method: 'POST', body: form })).data;
 }
 
+// ---------- Push notifications (nhắc ôn tập) ----------
+
+export interface PushDevice {
+  id: number;
+  label: string | null;
+  /** Endpoint đã che bớt — server không bao giờ trả nguyên vẹn. */
+  endpointHint: string;
+  createdAt: string;
+  lastNotifiedAt: string | null;
+}
+
+export interface PushDeliveryReport {
+  payload: Record<string, unknown>;
+  devices: number;
+  sent: number;
+  failed: number;
+  /** Thiết bị bị push service báo hết hiệu lực (404/410) và đã tự xóa khỏi DB. */
+  removed: number;
+}
+
+export interface PushReminderRun {
+  due: { words: number; exercises: number };
+  devices: number;
+  sent: number;
+  failed: number;
+  removed: number;
+  /** Có mặt khi không gửi gì — lý do (không có item đến hạn / chưa có thiết bị). */
+  skipped?: string;
+}
+
+/** Khóa công khai VAPID (base64url) để đăng ký PushManager. */
+export async function getVapidPublicKey(): Promise<string> {
+  return (await request<{ publicKey: string }>('/api/push/vapid-public-key')).data.publicKey;
+}
+
+/** Body dùng đúng shape PushSubscription.toJSON() + label tùy chọn. */
+export async function subscribePush(
+  subscription: { endpoint: string; keys: { p256dh: string; auth: string } },
+  label?: string
+): Promise<PushDevice> {
+  return (
+    await request<PushDevice>('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...subscription, label }),
+    })
+  ).data;
+}
+
+export async function unsubscribePush(endpoint: string): Promise<void> {
+  await request<{ deleted: boolean }>('/api/push/unsubscribe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ endpoint }),
+  });
+}
+
+export async function listPushDevices(): Promise<PushDevice[]> {
+  return (await request<PushDevice[]>('/api/push/devices')).data;
+}
+
+/** Gửi thông báo thử ngay lập tức tới mọi thiết bị đã đăng ký. */
+export async function sendTestPush(): Promise<PushDeliveryReport> {
+  return (await request<PushDeliveryReport>('/api/push/test', { method: 'POST' })).data;
+}
+
+/** Chạy tay đúng việc cron làm hằng ngày (8h/20h giờ VN). */
+export async function runPushReminder(): Promise<PushReminderRun> {
+  return (await request<PushReminderRun>('/api/push/run-reminder', { method: 'POST' })).data;
+}
+
 // ---------- Health ----------
 
 export async function checkHealth(): Promise<boolean> {

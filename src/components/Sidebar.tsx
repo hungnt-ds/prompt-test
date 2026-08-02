@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { Type, AudioLines, ClipboardList, BookOpen, Zap, Repeat, Database, PanelLeftClose, PanelLeftOpen, Sun, Moon } from "lucide-react";
+import { Type, AudioLines, ClipboardList, BookOpen, Zap, Repeat, Database, AlignLeft, PanelLeftClose, PanelLeftOpen, Sun, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -19,6 +19,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/review", label: "Ôn tập", icon: Repeat },
   { to: "/exercises", label: "Bài tập", icon: ClipboardList },
   { to: "/questions", label: "Ngân hàng câu", icon: Database },
+  { to: "/chunks", label: "Đọc chunk", icon: AlignLeft },
 ];
 
 const STORAGE_KEY = "sidebar:collapsed";

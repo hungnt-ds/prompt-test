@@ -15,6 +15,7 @@ import { VocabListPage } from '@/pages/VocabListPage'
 import { PracticePage } from '@/pages/PracticePage'
 import { ReviewPage } from '@/pages/ReviewPage'
 import { QuestionBankPage } from '@/pages/QuestionBankPage'
+import { ChunkReaderPage } from '@/pages/ChunkReaderPage'
 
 // Áp theme trước khi render để tránh nháy màu. Mặc định: tối.
 document.documentElement.classList.toggle(
@@ -37,6 +38,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/review" element={<ReviewPage />} />
           <Route path="/exercises" element={<ExerciseListPage />} />
           <Route path="/questions" element={<QuestionBankPage />} />
+          <Route path="/chunks" element={<ChunkReaderPage />} />
           <Route path="/exercises/upload" element={<ExerciseUploadPage />} />
           <Route path="/exercises/:id" element={<ExerciseDoPage />} />
           </Route>

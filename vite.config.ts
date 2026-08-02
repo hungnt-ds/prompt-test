@@ -37,6 +37,8 @@ export default defineConfig({
       workbox: {
         // App shell (JS/CSS/HTML/icons) is precached → the app opens offline.
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // Handler push + notificationclick (nhắc ôn tập) nạp vào sw.js.
+        importScripts: ['push-sw.js'],
         runtimeCaching: [
           {
             // vocab-api GETs (any origin — base URL is user-configurable):

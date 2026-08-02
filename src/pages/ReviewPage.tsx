@@ -13,6 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useSpeech } from "@/hooks/useSpeech";
 import { ApiSettings } from "@/components/ApiSettings";
+import { ReminderSettings } from "@/components/ReminderSettings";
 import { VoiceSettings } from "@/components/ipa/VoiceSettings";
 import { RatingButtons } from "@/components/practice/RatingButtons";
 import {
@@ -125,6 +126,7 @@ export function ReviewPage() {
           >
             <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
           </button>
+          <ReminderSettings />
           <VoiceSettings />
           <ApiSettings onSaved={refresh} />
         </div>
