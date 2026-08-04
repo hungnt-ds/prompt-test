@@ -8,12 +8,17 @@ import {
   RotateCcw,
   Loader2,
   Volume2,
-  Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSpeech } from "@/hooks/useSpeech";
 import { getExercise, type Exercise, type Question } from "@/services/vocabApi";
 import { useExerciseProgress } from "@/hooks/useExerciseProgress";
+import { DialogueRunner } from "@/components/exercises/DialogueRunner";
+import {
+  initialDialogueState,
+  isDialogueDone,
+  type DialogueState,
+} from "@/components/exercises/dialogueState";
 
 // ---------- Answer state ----------
 // mcq:   selected option id
@@ -27,10 +32,8 @@ interface ClozeAnswerState {
   blanks: Record<number, string>;
 }
 /** dialogue: người học tự viết câu trả lời của mình, không chấm đúng/sai. */
-interface DialogueAnswerState {
+interface DialogueAnswerState extends DialogueState {
   kind: "dialogue";
-  drafts: Record<number, string>;
-  revealed: number[];
 }
 type AnswerState = McqAnswer | ClozeAnswerState | DialogueAnswerState;
 
@@ -41,17 +44,14 @@ function normalize(s: string): string {
 
 function emptyAnswer(q: Question): AnswerState {
   if (q.type === "mcq") return { kind: "mcq", optionId: null };
-  if (q.type === "dialogue") return { kind: "dialogue", drafts: {}, revealed: [] };
+  if (q.type === "dialogue") return { kind: "dialogue", ...initialDialogueState(q.turns ?? []) };
   return { kind: "cloze", blanks: {} };
 }
 
 function isAnswered(q: Question, a: AnswerState): boolean {
   if (a.kind === "mcq") return a.optionId !== null;
-  if (a.kind === "dialogue") {
-    // Coi là "đã làm" khi đã xem hết gợi ý (hoặc bài không có lượt ẩn nào).
-    const hidden = (q.turns ?? []).map((t, i) => (t.hidden ? i : -1)).filter(i => i >= 0);
-    return hidden.length === 0 || hidden.every(i => a.revealed.includes(i));
-  }
+  // Dialogue: "đã làm" khi đi hết hội thoại.
+  if (a.kind === "dialogue") return isDialogueDone(q.turns ?? [], a);
   const blanks = (q.clozeAnswers ?? []).map(c => c.blank);
   return blanks.length > 0 && blanks.every(b => (a.blanks[b] ?? "").trim().length > 0);
 }
@@ -337,69 +337,20 @@ function ExerciseRunner({ exercise }: { exercise: Exercise }) {
                   </>
                 )}
 
-                {/* Dialogue — không chấm đúng/sai, lượt hidden phải che trước */}
+                {/* Dialogue — chạy từng bước: hỏi → tự trả lời → xem gợi ý → tiếp */}
                 {q.type === "dialogue" && answer.kind === "dialogue" && (
                   <>
                     <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                       <span className="text-slate-500 font-black mr-2">Câu {qi + 1}.</span>
-                      {q.prompt}
-                      <span className="ml-2 text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-500/10 border border-purple-500/30 rounded-full px-2 py-0.5 align-middle">
-                        Đối thoại
-                      </span>
                     </h3>
-                    <div className="space-y-2">
-                      {(q.turns ?? []).map((turn, ti) => {
-                        const isHidden = turn.hidden;
-                        const revealed = answer.revealed.includes(ti) || submitted;
-                        const draft = answer.drafts[ti] ?? "";
-                        return (
-                          <div
-                            key={ti}
-                            className={cn("flex flex-col gap-1", isHidden ? "items-end" : "items-start")}
-                          >
-                            <span className="text-[10px] font-bold text-slate-500 px-1">{turn.speaker}</span>
-                            {!isHidden ? (
-                              <p className="max-w-[85%] rounded-2xl rounded-tl-sm bg-white dark:bg-slate-900 border border-slate-300/60 dark:border-slate-800/60 px-3.5 py-2 text-sm text-slate-800 dark:text-slate-200">
-                                {turn.text}
-                              </p>
-                            ) : (
-                              <div className="w-full max-w-[85%] space-y-1.5">
-                                <input
-                                  type="text"
-                                  value={draft}
-                                  onChange={e =>
-                                    setAnswer(qi, {
-                                      ...answer,
-                                      drafts: { ...answer.drafts, [ti]: e.target.value },
-                                    })
-                                  }
-                                  placeholder="Bạn sẽ nói gì ở lượt này?"
-                                  className="w-full rounded-2xl rounded-tr-sm bg-white dark:bg-slate-900 border border-blue-500/40 px-3.5 py-2 text-sm text-right text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-blue-500"
-                                />
-                                {revealed ? (
-                                  <p className="rounded-2xl rounded-tr-sm bg-purple-500/5 border border-purple-500/30 px-3.5 py-2 text-sm text-slate-800 dark:text-slate-200 text-right">
-                                    <span className="block text-[10px] font-bold text-purple-600 dark:text-purple-400 mb-0.5">
-                                      Gợi ý
-                                    </span>
-                                    {turn.text}
-                                  </p>
-                                ) : (
-                                  <button
-                                    onClick={() =>
-                                      setAnswer(qi, { ...answer, revealed: [...answer.revealed, ti] })
-                                    }
-                                    className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-purple-500/40 text-purple-700 dark:text-purple-300 hover:bg-purple-500/10 transition-colors"
-                                  >
-                                    <Eye className="w-3.5 h-3.5" />
-                                    Xem gợi ý
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <DialogueRunner
+                      prompt={q.prompt}
+                      turns={q.turns ?? []}
+                      explanation={q.explanation}
+                      state={answer}
+                      frozen={submitted}
+                      onChange={next => setAnswer(qi, { kind: "dialogue", ...next })}
+                    />
                   </>
                 )}
 

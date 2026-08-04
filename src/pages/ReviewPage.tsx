@@ -16,11 +16,14 @@ import { ApiSettings } from "@/components/ApiSettings";
 import { ReminderSettings } from "@/components/ReminderSettings";
 import { VoiceSettings } from "@/components/ipa/VoiceSettings";
 import { RatingButtons } from "@/components/practice/RatingButtons";
+import { DialogueRunner } from "@/components/exercises/DialogueRunner";
+import { initialDialogueState, type DialogueState } from "@/components/exercises/dialogueState";
 import {
   reviewDue,
   reviewAnswer,
   type DueResult,
   type DueItemContent,
+  type Question,
 } from "@/services/vocabApi";
 
 const STATE_LABEL: Record<string, { label: string; cls: string }> = {
@@ -294,22 +297,54 @@ function WordReviewCard({
 }
 
 function ExerciseReviewCard({ exercise }: { exercise: Extract<DueItemContent, { type: "exercise" }> }) {
+  // /review/due đã kèm sẵn turns nên câu đối thoại làm được ngay tại đây.
+  const dialogues = exercise.questions.filter(q => q.type === "dialogue" && (q.turns?.length ?? 0) > 0);
+  const others = exercise.questions.length - dialogues.length;
+
   return (
-    <div className="rounded-2xl border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-950/60 p-6 md:p-8 space-y-4 text-center">
-      <ListChecks className="w-8 h-8 mx-auto text-slate-500" />
-      <div className="space-y-1">
-        <p className="text-xl font-bold text-slate-900 dark:text-slate-100">{exercise.title}</p>
+    <div className="rounded-2xl border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-950/60 p-4 md:p-6 space-y-4">
+      <div className="space-y-1 text-center">
+        <ListChecks className="w-7 h-7 mx-auto text-slate-500" />
+        <p className="text-lg font-bold text-slate-900 dark:text-slate-100">{exercise.title}</p>
         {exercise.description && <p className="text-sm text-slate-500">{exercise.description}</p>}
         <p className="text-xs text-slate-400 dark:text-slate-600">{exercise.questions.length} câu hỏi</p>
       </div>
-      <Link
-        to={`/exercises/${exercise.id}`}
-        target="_blank"
-        className="mx-auto inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-500 dark:bg-blue-600 dark:text-white dark:hover:bg-blue-500 transition-colors"
-      >
-        Làm bài này <ExternalLink className="w-4 h-4" />
-      </Link>
-      <p className="text-xs text-slate-400 dark:text-slate-600">Làm xong quay lại đây tự chấm mức độ nhớ bên dưới.</p>
+
+      {dialogues.map(q => (
+        <DialogueReviewBlock key={q.id} question={q} />
+      ))}
+
+      {(others > 0 || dialogues.length === 0) && (
+        <div className="text-center space-y-2">
+          <Link
+            to={`/exercises/${exercise.id}`}
+            target="_blank"
+            className="mx-auto inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-500 transition-colors"
+          >
+            {dialogues.length > 0 ? `Làm ${others} câu còn lại` : "Làm bài này"}
+            <ExternalLink className="w-4 h-4" />
+          </Link>
+          <p className="text-xs text-slate-400 dark:text-slate-600">
+            Làm xong quay lại đây tự chấm mức độ nhớ bên dưới.
+          </p>
+        </div>
+      )}
     </div>
+  );
+}
+
+/** Một câu đối thoại chạy ngay trong hàng ôn tập. */
+function DialogueReviewBlock({ question }: { question: Question }) {
+  const turns = question.turns ?? [];
+  const [state, setState] = useState<DialogueState>(() => initialDialogueState(turns));
+
+  return (
+    <DialogueRunner
+      prompt={question.prompt}
+      turns={turns}
+      explanation={question.explanation}
+      state={state}
+      onChange={setState}
+    />
   );
 }
