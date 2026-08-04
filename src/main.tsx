@@ -1,6 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { HashRouter, Routes, Route } from 'react-router-dom'
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './index.css'
 import App from './App.tsx'
 import { AppLayout } from '@/components/AppLayout'
@@ -8,14 +8,20 @@ import { SpeechSettingsProvider } from '@/hooks/useSpeechSettings'
 import { IpaExplorerPage } from '@/pages/IpaExplorerPage'
 import { IpaComparePage } from '@/pages/IpaComparePage'
 import { IpaDetailPage } from '@/pages/IpaDetailPage'
-import { ExerciseListPage } from '@/pages/ExerciseListPage'
-import { ExerciseUploadPage } from '@/pages/ExerciseUploadPage'
-import { ExerciseDoPage } from '@/pages/ExerciseDoPage'
+import { ChunkReaderPage } from '@/pages/ChunkReaderPage'
+// Từ vựng
+import { VocabHomePage } from '@/pages/vocab/VocabHomePage'
+import { CollectionDetailPage } from '@/pages/vocab/CollectionDetailPage'
 import { VocabListPage } from '@/pages/VocabListPage'
 import { PracticePage } from '@/pages/PracticePage'
 import { ReviewPage } from '@/pages/ReviewPage'
+// Bài tập
+import { ExerciseHomePage } from '@/pages/exercises/ExerciseHomePage'
+import { ExerciseCollectionPage } from '@/pages/exercises/ExerciseCollectionPage'
+import { ExerciseListPage } from '@/pages/ExerciseListPage'
+import { ExerciseUploadPage } from '@/pages/ExerciseUploadPage'
+import { ExerciseDoPage } from '@/pages/ExerciseDoPage'
 import { QuestionBankPage } from '@/pages/QuestionBankPage'
-import { ChunkReaderPage } from '@/pages/ChunkReaderPage'
 
 // Áp theme trước khi render để tránh nháy màu. Mặc định: tối.
 document.documentElement.classList.toggle(
@@ -30,17 +36,32 @@ createRoot(document.getElementById('root')!).render(
         <Routes>
           <Route element={<AppLayout />}>
             <Route path="/" element={<App />} />
+
             <Route path="/ipa" element={<IpaExplorerPage />} />
             <Route path="/ipa/compare" element={<IpaComparePage />} />
             <Route path="/ipa/:id" element={<IpaDetailPage />} />
-          <Route path="/vocab" element={<VocabListPage />} />
-          <Route path="/practice" element={<PracticePage />} />
-          <Route path="/review" element={<ReviewPage />} />
-          <Route path="/exercises" element={<ExerciseListPage />} />
-          <Route path="/questions" element={<QuestionBankPage />} />
-          <Route path="/chunks" element={<ChunkReaderPage />} />
-          <Route path="/exercises/upload" element={<ExerciseUploadPage />} />
-          <Route path="/exercises/:id" element={<ExerciseDoPage />} />
+
+            <Route path="/chunks" element={<ChunkReaderPage />} />
+
+            {/* Từ vựng — duyệt như thư mục, mọi chế độ học nằm bên trong */}
+            <Route path="/vocab" element={<VocabHomePage />} />
+            <Route path="/vocab/words" element={<VocabListPage />} />
+            <Route path="/vocab/practice" element={<PracticePage />} />
+            <Route path="/vocab/review" element={<ReviewPage />} />
+            <Route path="/vocab/c/:slug" element={<CollectionDetailPage />} />
+
+            {/* Bài tập — cũng duyệt theo thư mục */}
+            <Route path="/exercises" element={<ExerciseHomePage />} />
+            <Route path="/exercises/all" element={<ExerciseListPage />} />
+            <Route path="/exercises/questions" element={<QuestionBankPage />} />
+            <Route path="/exercises/upload" element={<ExerciseUploadPage />} />
+            <Route path="/exercises/c/:slug" element={<ExerciseCollectionPage />} />
+            <Route path="/exercises/:id" element={<ExerciseDoPage />} />
+
+            {/* Đường dẫn cũ */}
+            <Route path="/practice" element={<Navigate to="/vocab/practice" replace />} />
+            <Route path="/review" element={<Navigate to="/vocab/review" replace />} />
+            <Route path="/questions" element={<Navigate to="/exercises/questions" replace />} />
           </Route>
         </Routes>
       </HashRouter>

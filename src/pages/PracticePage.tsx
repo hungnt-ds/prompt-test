@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import {
+  ArrowLeft,
+  FolderOpen,
   Layers,
   ListChecks,
   Ear,
@@ -24,6 +27,7 @@ import { FlashcardSession } from "@/components/practice/FlashcardSession";
 import { QuizSession } from "@/components/practice/QuizSession";
 import {
   listTags,
+  listCollections,
   practiceFlashcards,
   practiceQuiz,
   practiceAnswer,
@@ -34,7 +38,8 @@ import {
   type PracticeQuestion,
   type PracticeResult,
   type PracticeAnswerResult,
-  type TagWithCounts,
+  type Tag,
+  type Collection,
 } from "@/services/vocabApi";
 
 type Mode = "flashcards" | QuizKind;
@@ -65,22 +70,57 @@ export function PracticePage() {
   const [favorite, setFavorite] = useState(false);
   const [difficult, setDifficult] = useState(false);
   const [countInput, setCountInput] = useState("10");
-  const [tags, setTags] = useState<TagWithCounts[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
   const [phase, setPhase] = useState<Phase>({ name: "setup" });
   const [error, setError] = useState<string | null>(null);
 
+  // Phạm vi collection truyền qua URL: /vocab/practice?collections=1,2
+  const [searchParams] = useSearchParams();
+  const collectionIds = useMemo(
+    () =>
+      (searchParams.get("collections") ?? "")
+        .split(",")
+        .map(s => Number(s.trim()))
+        .filter(n => Number.isInteger(n) && n > 0),
+    [searchParams]
+  );
+  const [allCollections, setAllCollections] = useState<Collection[]>([]);
+
   useEffect(() => {
-    void listTags().then(setTags).catch(() => {});
+    void listTags("word").then(setTags).catch(() => {});
   }, []);
+
+  // Tên các bộ đang giới hạn — để hiện rõ đang luyện trong phạm vi nào.
+  useEffect(() => {
+    if (collectionIds.length === 0) return;
+    let cancelled = false;
+    void listCollections({ limit: 100 })
+      .then(r => {
+        if (!cancelled) setAllCollections(r.collections);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [collectionIds]);
+
+  const scopeInfo = useMemo(
+    () => allCollections.filter(c => collectionIds.includes(c.id)),
+    [allCollections, collectionIds]
+  );
 
   const filter = useMemo<WordFilter>(() => {
     const f: WordFilter = {};
+    if (collectionIds.length) {
+      f.collectionIds = collectionIds; // PHẠM VI (AND) — gồm cả nhánh con
+      f.includeSubcollections = true;
+    }
     if (selectedTags.length) f.tags = selectedTags;
     if (selectedPos.length) f.pos = selectedPos;
     if (favorite) f.favorite = true;
     if (difficult) f.difficult = true;
     return f;
-  }, [selectedTags, selectedPos, favorite, difficult]);
+  }, [collectionIds, selectedTags, selectedPos, favorite, difficult]);
 
   // Giới hạn theo API: flashcards ≤ 200, quiz ≤ 50
   const maxCount = mode === "flashcards" ? 200 : 50;
@@ -114,17 +154,25 @@ export function PracticePage() {
   const toggle = (list: string[], set: (v: string[]) => void, value: string) =>
     set(list.includes(value) ? list.filter(v => v !== value) : [...list, value]);
 
-  const wordTags = tags.filter(t => t.wordCount > 0);
+  const wordTags = tags;
 
   return (
     <div className="h-screen flex flex-col bg-slate-100 dark:bg-[#0b1120] text-slate-900 dark:text-slate-100">
       {/* Header */}
       <header className="relative h-16 flex items-center justify-between gap-3 pl-16 pr-4 md:px-6 shrink-0 border-b border-slate-300/60 dark:border-slate-800/60">
-        <div className="min-w-0">
-          <h1 className="text-[15px] font-semibold text-slate-900 dark:text-slate-100 truncate">Luyện tập từ vựng</h1>
-          <p className="hidden sm:block text-[11px] text-slate-500">
-            Lật thẻ &amp; quiz sinh từ kho từ — kết quả được ghi vào lịch ôn FSRS
-          </p>
+        <div className="flex items-center gap-3 min-w-0">
+          <Link
+            to="/vocab"
+            className="flex items-center justify-center w-9 h-9 shrink-0 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Link>
+          <div className="min-w-0">
+            <h1 className="text-[15px] font-semibold text-slate-900 dark:text-slate-100 truncate">Luyện tập từ vựng</h1>
+            <p className="hidden sm:block text-[11px] text-slate-500">
+              Lật thẻ &amp; quiz sinh từ kho từ — kết quả được ghi vào lịch ôn FSRS
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <VoiceSettings />
@@ -177,6 +225,26 @@ export function PracticePage() {
                     khớp bất kỳ điều kiện nào (OR) — bỏ trống = toàn bộ kho từ
                   </span>
                 </div>
+
+                {/* Phạm vi collection (AND) đến từ màn thư mục */}
+                {collectionIds.length > 0 && (
+                  <div className="flex items-start gap-2 rounded-lg border border-blue-500/40 bg-blue-500/5 px-3 py-2">
+                    <FolderOpen className="w-4 h-4 shrink-0 text-blue-600 dark:text-blue-400 mt-0.5" />
+                    <div className="min-w-0 flex-1 text-xs">
+                      <p className="text-blue-700 dark:text-blue-300 font-semibold">
+                        Giới hạn trong {collectionIds.length} bộ đã chọn (gồm cả thư mục con)
+                      </p>
+                      <p className="text-slate-500 truncate">
+                        {scopeInfo.length > 0
+                          ? scopeInfo.map(c => c.title).join(" · ")
+                          : collectionIds.join(", ")}
+                      </p>
+                    </div>
+                    <Link to="/vocab/practice" className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline shrink-0">
+                      Bỏ giới hạn
+                    </Link>
+                  </div>
+                )}
                 {wordTags.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
                     {wordTags.map(t => (
@@ -190,7 +258,7 @@ export function PracticePage() {
                             : "border-slate-300 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-500 dark:hover:border-slate-600"
                         )}
                       >
-                        {t.name} <span className="opacity-50">{t.wordCount}</span>
+                        {t.label || t.name} <span className="opacity-50">{t.usageCount}</span>
                       </button>
                     ))}
                   </div>

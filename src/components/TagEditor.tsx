@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Plus, Loader2, X, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { listTags, type TagWithCounts } from "@/services/vocabApi";
+import { listTags, type Tag, type TagType } from "@/services/vocabApi";
 
 /** Server chuẩn hóa tên tag về lowercase-kebab — preview trước cho người dùng. */
 function normalizeTagName(raw: string): string {
@@ -14,22 +14,25 @@ function normalizeTagName(raw: string): string {
  */
 export function TagEditor({
   current,
+  tagType = "word",
   onSave,
   onClose,
 }: {
   current: string[];
+  /** Tag thuộc loại nào — cùng tên ở hai type là hai tag độc lập. */
+  tagType?: TagType;
   onSave: (tags: string[]) => Promise<void>;
   onClose: () => void;
 }) {
   const [selected, setSelected] = useState<string[]>(current);
-  const [allTags, setAllTags] = useState<TagWithCounts[]>([]);
+  const [allTags, setAllTags] = useState<Tag[]>([]);
   const [newTag, setNewTag] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void listTags().then(setAllTags).catch(() => {});
-  }, []);
+    void listTags(tagType).then(setAllTags).catch(() => {});
+  }, [tagType]);
 
   // Tag đang chọn nhưng chưa có trong danh sách chung (mới gõ) cũng hiện chip.
   const names = [...new Set([...allTags.map(t => t.name), ...selected])].sort();

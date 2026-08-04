@@ -5,7 +5,7 @@ import {
   createTag,
   renameTag,
   deleteTag,
-  type TagWithCounts,
+  type Tag,
 } from "@/services/vocabApi";
 
 /**
@@ -30,7 +30,7 @@ export function TagManager({ onChanged }: { onChanged?: () => void }) {
 }
 
 function TagManagerDialog({ onClose, onChanged }: { onClose: () => void; onChanged?: () => void }) {
-  const [tags, setTags] = useState<TagWithCounts[] | null>(null);
+  const [tags, setTags] = useState<Tag[] | null>(null);
   const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -159,7 +159,7 @@ function TagManagerDialog({ onClose, onChanged }: { onClose: () => void; onChang
                     <>
                       <span className="flex-1 min-w-0 truncate text-sm text-slate-800 dark:text-slate-200 font-mono">{t.name}</span>
                       <span className="text-[10px] text-slate-400 dark:text-slate-600 whitespace-nowrap">
-                        {t.wordCount} từ · {t.exerciseCount} bài
+                        {t.usageCount} mục · {t.type}
                       </span>
                       <button
                         onClick={() => {

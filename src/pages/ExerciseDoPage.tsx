@@ -8,6 +8,7 @@ import {
   RotateCcw,
   Loader2,
   Volume2,
+  Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSpeech } from "@/hooks/useSpeech";
@@ -25,7 +26,13 @@ interface ClozeAnswerState {
   kind: "cloze";
   blanks: Record<number, string>;
 }
-type AnswerState = McqAnswer | ClozeAnswerState;
+/** dialogue: người học tự viết câu trả lời của mình, không chấm đúng/sai. */
+interface DialogueAnswerState {
+  kind: "dialogue";
+  drafts: Record<number, string>;
+  revealed: number[];
+}
+type AnswerState = McqAnswer | ClozeAnswerState | DialogueAnswerState;
 
 /** Spec: so đáp án không phân biệt hoa thường, bỏ khoảng trắng thừa. */
 function normalize(s: string): string {
@@ -33,11 +40,18 @@ function normalize(s: string): string {
 }
 
 function emptyAnswer(q: Question): AnswerState {
-  return q.type === "mcq" ? { kind: "mcq", optionId: null } : { kind: "cloze", blanks: {} };
+  if (q.type === "mcq") return { kind: "mcq", optionId: null };
+  if (q.type === "dialogue") return { kind: "dialogue", drafts: {}, revealed: [] };
+  return { kind: "cloze", blanks: {} };
 }
 
 function isAnswered(q: Question, a: AnswerState): boolean {
   if (a.kind === "mcq") return a.optionId !== null;
+  if (a.kind === "dialogue") {
+    // Coi là "đã làm" khi đã xem hết gợi ý (hoặc bài không có lượt ẩn nào).
+    const hidden = (q.turns ?? []).map((t, i) => (t.hidden ? i : -1)).filter(i => i >= 0);
+    return hidden.length === 0 || hidden.every(i => a.revealed.includes(i));
+  }
   const blanks = (q.clozeAnswers ?? []).map(c => c.blank);
   return blanks.length > 0 && blanks.every(b => (a.blanks[b] ?? "").trim().length > 0);
 }
@@ -54,7 +68,13 @@ function isCorrect(q: Question, a: AnswerState): boolean {
     const opt = (q.options ?? []).find(o => o.id === a.optionId);
     return !!opt?.isCorrect;
   }
+  if (a.kind === "dialogue") return false; // không chấm tự động
   return (q.clozeAnswers ?? []).every(c => isBlankCorrect(q, a, c.blank));
+}
+
+/** Câu dialogue không tính vào điểm. */
+function isGraded(q: Question): boolean {
+  return q.type !== "dialogue";
 }
 
 /** Split a cloze prompt into text segments and blank slots ({{1}}, {{2}}…). */
@@ -96,7 +116,7 @@ export function ExerciseDoPage() {
     return (
       <div className="h-screen flex flex-col items-center justify-center gap-4 bg-slate-100 dark:bg-[#0b1120] text-slate-900 dark:text-slate-100 p-6">
         <p className="text-sm text-slate-600 dark:text-slate-400 text-center">{loaded?.error ?? `Bài tập "${id}" không hợp lệ.`}</p>
-        <Link to="/exercises" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+        <Link to="/exercises/all" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
           ← Quay lại danh sách bài tập
         </Link>
       </div>
@@ -134,6 +154,8 @@ function ExerciseRunner({ exercise }: { exercise: Exercise }) {
     () => questions.filter((q, i) => isCorrect(q, answers[i])).length,
     [questions, answers]
   );
+  const gradedTotal = useMemo(() => questions.filter(isGraded).length, [questions]);
+  const dialogueCount = questions.length - gradedTotal;
 
   const setAnswer = (index: number, value: AnswerState) =>
     setAnswers(prev => prev.map((a, i) => (i === index ? value : a)));
@@ -142,8 +164,8 @@ function ExerciseRunner({ exercise }: { exercise: Exercise }) {
     setSubmitted(true);
     saveResult(exKey, {
       score,
-      gradedTotal: questions.length,
-      essayCount: 0,
+      gradedTotal,
+      essayCount: dialogueCount,
       completedAt: new Date().toISOString(),
     });
   };
@@ -159,7 +181,7 @@ function ExerciseRunner({ exercise }: { exercise: Exercise }) {
       <header className="h-16 flex items-center justify-between gap-3 pl-16 pr-4 md:px-6 shrink-0 border-b border-slate-300/60 dark:border-slate-800/60">
         <div className="flex items-center gap-3 min-w-0">
           <Link
-            to="/exercises"
+            to="/exercises/all"
             className="flex items-center justify-center w-9 h-9 shrink-0 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -200,8 +222,13 @@ function ExerciseRunner({ exercise }: { exercise: Exercise }) {
             <section className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
               <h2 className="text-lg font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
                 <CheckCircle2 className="w-5 h-5" />
-                Kết quả: {score}/{questions.length} câu đúng
+                Kết quả: {score}/{gradedTotal} câu đúng
               </h2>
+              {dialogueCount > 0 && (
+                <p className="text-xs text-emerald-700/80 dark:text-emerald-200/70">
+                  {dialogueCount} đối thoại không chấm tự động — tự đối chiếu với gợi ý.
+                </p>
+              )}
             </section>
           )}
 
@@ -307,6 +334,72 @@ function ExerciseRunner({ exercise }: { exercise: Exercise }) {
                         );
                       })}
                     </p>
+                  </>
+                )}
+
+                {/* Dialogue — không chấm đúng/sai, lượt hidden phải che trước */}
+                {q.type === "dialogue" && answer.kind === "dialogue" && (
+                  <>
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                      <span className="text-slate-500 font-black mr-2">Câu {qi + 1}.</span>
+                      {q.prompt}
+                      <span className="ml-2 text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-500/10 border border-purple-500/30 rounded-full px-2 py-0.5 align-middle">
+                        Đối thoại
+                      </span>
+                    </h3>
+                    <div className="space-y-2">
+                      {(q.turns ?? []).map((turn, ti) => {
+                        const isHidden = turn.hidden;
+                        const revealed = answer.revealed.includes(ti) || submitted;
+                        const draft = answer.drafts[ti] ?? "";
+                        return (
+                          <div
+                            key={ti}
+                            className={cn("flex flex-col gap-1", isHidden ? "items-end" : "items-start")}
+                          >
+                            <span className="text-[10px] font-bold text-slate-500 px-1">{turn.speaker}</span>
+                            {!isHidden ? (
+                              <p className="max-w-[85%] rounded-2xl rounded-tl-sm bg-white dark:bg-slate-900 border border-slate-300/60 dark:border-slate-800/60 px-3.5 py-2 text-sm text-slate-800 dark:text-slate-200">
+                                {turn.text}
+                              </p>
+                            ) : (
+                              <div className="w-full max-w-[85%] space-y-1.5">
+                                <input
+                                  type="text"
+                                  value={draft}
+                                  onChange={e =>
+                                    setAnswer(qi, {
+                                      ...answer,
+                                      drafts: { ...answer.drafts, [ti]: e.target.value },
+                                    })
+                                  }
+                                  placeholder="Bạn sẽ nói gì ở lượt này?"
+                                  className="w-full rounded-2xl rounded-tr-sm bg-white dark:bg-slate-900 border border-blue-500/40 px-3.5 py-2 text-sm text-right text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-blue-500"
+                                />
+                                {revealed ? (
+                                  <p className="rounded-2xl rounded-tr-sm bg-purple-500/5 border border-purple-500/30 px-3.5 py-2 text-sm text-slate-800 dark:text-slate-200 text-right">
+                                    <span className="block text-[10px] font-bold text-purple-600 dark:text-purple-400 mb-0.5">
+                                      Gợi ý
+                                    </span>
+                                    {turn.text}
+                                  </p>
+                                ) : (
+                                  <button
+                                    onClick={() =>
+                                      setAnswer(qi, { ...answer, revealed: [...answer.revealed, ti] })
+                                    }
+                                    className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-purple-500/40 text-purple-700 dark:text-purple-300 hover:bg-purple-500/10 transition-colors"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                    Xem gợi ý
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </>
                 )}
 

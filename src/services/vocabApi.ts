@@ -97,11 +97,22 @@ export interface ClozeAnswer {
   accepted: string[];
 }
 
+/** Đối thoại gợi ý: lượt `hidden` phải che đi ban đầu để người học tự trả lời. */
+export interface DialogueTurn {
+  speaker: string;
+  text: string;
+  hidden: boolean;
+}
+
+export type QuestionType = 'mcq' | 'cloze' | 'dialogue';
+
 export interface Question {
   id: number;
-  type: 'mcq' | 'cloze';
-  /** With cloze the prompt contains {{1}}, {{2}}… placeholders. */
+  type: QuestionType;
+  /** With cloze the prompt contains {{1}}, {{2}}… placeholders. Với dialogue: tiêu đề/bối cảnh. */
   prompt: string;
+  /** Chỉ với dialogue — không chấm đúng/sai, người học tự đánh giá. */
+  turns?: DialogueTurn[] | null;
   clozeAnswers?: ClozeAnswer[] | null;
   explanation?: string | null;
   sourceWord?: { id: number; headword: string; pronunciation: string | null } | null;
@@ -138,11 +149,42 @@ export interface Exercise {
   card?: ReviewCard | null;
 }
 
-export interface TagWithCounts {
+/** Mỗi tag thuộc đúng một loại — cùng tên ở hai type là hai tag độc lập. */
+export type TagType = 'word' | 'exercise' | 'question' | 'collection';
+
+export interface Tag {
   id: number;
+  /** Slug không dấu, dùng để lọc và đặt URL (vd "sach-ielts") */
   name: string;
+  /** Tên hiển thị giữ nguyên dấu (vd "Sách IELTS") */
+  label: string;
+  type: TagType;
+  usageCount: number;
+}
+
+/** Collection = "thư mục"/lộ trình, lồng nhau được. */
+export interface Collection {
+  id: number;
+  slug: string;
+  title: string;
+  description: string | null;
+  /** Độ khó 1-5 */
+  difficulty: number | null;
+  parent: { id: number; slug: string; title: string } | null;
+  tags: string[];
+  /** Từ gắn TRỰC TIẾP vào collection này */
   wordCount: number;
   exerciseCount: number;
+  childCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CollectionTreeNode extends Collection {
+  /** Tính cả các nhánh con */
+  totalWordCount: number;
+  totalExerciseCount: number;
+  children: CollectionTreeNode[];
 }
 
 /** Per-file result of POST /api/import (multipart). */
@@ -237,6 +279,10 @@ export interface WordListQuery {
   pos?: string;
   favorite?: boolean;
   difficult?: boolean;
+  /** Phạm vi: id hoặc slug của collection */
+  collection?: string | number;
+  /** Mặc định true — gồm cả collection con */
+  includeSub?: boolean;
   page?: number;
   limit?: number;
 }
@@ -268,6 +314,8 @@ export interface ExerciseListQuery {
   source?: ExerciseSource;
   favorite?: boolean;
   difficult?: boolean;
+  collection?: string | number;
+  includeSub?: boolean;
   page?: number;
   limit?: number;
 }
@@ -304,9 +352,13 @@ export interface BankQuestion extends Question {
 }
 
 export interface QuestionListQuery {
-  type?: 'mcq' | 'cloze';
+  type?: QuestionType;
   q?: string;
   exerciseId?: number;
+  /** Tag gắn trực tiếp vào câu hỏi */
+  tag?: string;
+  /** Câu thuộc đề nằm trong collection này (gồm cả nhánh con) */
+  collection?: string | number;
   page?: number;
   limit?: number;
 }
@@ -355,8 +407,44 @@ export interface Tag {
   name: string;
 }
 
-export async function listTags(): Promise<TagWithCounts[]> {
-  return (await request<TagWithCounts[]>('/api/tags')).data;
+export async function listTags(type?: TagType): Promise<Tag[]> {
+  return (await request<Tag[]>(`/api/tags${qs({ type })}`)).data;
+}
+
+// ---------- Collections (thư mục / lộ trình) ----------
+
+export interface CollectionTreeQuery {
+  /** Chỉ lấy lộ trình mang tag này (tag type = collection) */
+  tag?: string;
+  /** id hoặc slug: chỉ lấy nhánh bắt đầu từ collection này */
+  root?: string;
+  /** Số cấp con tối đa (mặc định 3) */
+  depth?: number;
+}
+
+export async function getCollectionTree(query: CollectionTreeQuery = {}): Promise<CollectionTreeNode[]> {
+  return (await request<CollectionTreeNode[]>(`/api/collections/tree${qs({ ...query })}`)).data;
+}
+
+export interface CollectionListQuery {
+  q?: string;
+  tag?: string;
+  /** id/slug của cha — chỉ lấy con trực tiếp */
+  parent?: string;
+  rootOnly?: boolean;
+  page?: number;
+  limit?: number;
+}
+
+export async function listCollections(
+  query: CollectionListQuery = {}
+): Promise<{ collections: Collection[]; pagination: Pagination }> {
+  const env = await request<Collection[]>(`/api/collections${qs({ ...query })}`);
+  return { collections: env.data, pagination: env.pagination! };
+}
+
+export async function getCollection(idOrSlug: string | number): Promise<Collection> {
+  return (await request<Collection>(`/api/collections/${idOrSlug}`)).data;
 }
 
 /** Tên tag được server tự chuẩn hóa về lowercase-kebab. 409 nếu trùng. */
@@ -410,6 +498,10 @@ export async function setExerciseTags(id: number, tags: string[]): Promise<Exerc
 
 /** Bộ lọc OR: từ được chọn nếu khớp BẤT KỲ điều kiện nào. {} = toàn bộ kho từ. */
 export interface WordFilter {
+  /** PHẠM VI (AND) — thu hẹp trước, các điều kiện khác OR bên trong phạm vi này. */
+  collectionIds?: number[];
+  /** Mặc định true = gồm cả collection con. */
+  includeSubcollections?: boolean;
   tags?: string[];
   pos?: string[];
   favorite?: true;

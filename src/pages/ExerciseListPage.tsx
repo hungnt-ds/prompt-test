@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  ArrowLeft,
   Upload,
   Search,
   Flag,
@@ -24,7 +25,7 @@ import {
   type ExerciseListItem,
   type ExerciseSource,
   type Pagination,
-  type TagWithCounts,
+  type Tag,
 } from "@/services/vocabApi";
 import { useExerciseProgress } from "@/hooks/useExerciseProgress";
 
@@ -44,7 +45,7 @@ interface QueryResult {
 
 export function ExerciseListPage() {
   const [result, setResult] = useState<QueryResult | null>(null);
-  const [tags, setTags] = useState<TagWithCounts[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
   const [reloadTick, setReloadTick] = useState(0);
 
   const [search, setSearch] = useState("");
@@ -96,7 +97,7 @@ export function ExerciseListPage() {
   }, [debouncedSearch, tag, source, page, reloadTick, queryKey]);
 
   useEffect(() => {
-    void listTags().then(setTags).catch(() => {});
+    void listTags("exercise").then(setTags).catch(() => {});
   }, []);
 
   const loading = !result || result.key !== queryKey;
@@ -104,7 +105,7 @@ export function ExerciseListPage() {
   const error = !loading ? result?.error ?? null : null;
   const load = useCallback(() => setReloadTick(t => t + 1), []);
 
-  const exerciseTags = useMemo(() => tags.filter(t => t.exerciseCount > 0), [tags]);
+  const exerciseTags = tags;
 
   // "Làm lại sau" is a client-side flag — filter the current page locally.
   const visible = useMemo(() => {
@@ -115,7 +116,7 @@ export function ExerciseListPage() {
   const saveExerciseTags = async (ex: ExerciseListItem, newTags: string[]) => {
     const updated = await setExerciseTags(ex.id, newTags);
     setResult(r => r && { ...r, exercises: r.exercises.map(e => (e.id === ex.id ? { ...e, tags: updated.tags } : e)) });
-    void listTags().then(setTags).catch(() => {});
+    void listTags("exercise").then(setTags).catch(() => {});
   };
 
   const toggleMark = async (ex: ExerciseListItem, field: "favorite" | "difficult") => {
@@ -134,11 +135,19 @@ export function ExerciseListPage() {
     <div className="h-screen flex flex-col bg-slate-100 dark:bg-[#0b1120] text-slate-900 dark:text-slate-100">
       {/* Header */}
       <header className="relative h-16 flex items-center justify-between gap-3 pl-16 pr-4 md:px-6 shrink-0 border-b border-slate-300/60 dark:border-slate-800/60">
-        <div className="min-w-0">
-          <h1 className="text-[15px] font-semibold text-slate-900 dark:text-slate-100 truncate">Bài tập</h1>
-          <p className="hidden sm:block text-[11px] text-slate-500">
-            Trắc nghiệm &amp; điền câu từ vocab-api — chọn bài để làm
-          </p>
+        <div className="flex items-center gap-3 min-w-0">
+          <Link
+            to="/exercises"
+            className="flex items-center justify-center w-9 h-9 shrink-0 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Link>
+          <div className="min-w-0">
+            <h1 className="text-[15px] font-semibold text-slate-900 dark:text-slate-100 truncate">Tất cả bài tập</h1>
+            <p className="hidden sm:block text-[11px] text-slate-500">
+              Trắc nghiệm, điền câu &amp; đối thoại — chọn bài để làm
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <ApiSettings onSaved={load} />
@@ -176,7 +185,7 @@ export function ExerciseListPage() {
                 <option value="">Tất cả tag</option>
                 {exerciseTags.map(t => (
                   <option key={t.id} value={t.name}>
-                    {t.name} ({t.exerciseCount})
+                    {t.label || t.name} ({t.usageCount})
                   </option>
                 ))}
               </select>

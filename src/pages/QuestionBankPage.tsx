@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
+  ArrowLeft,
   Search,
   Loader2,
   AlertTriangle,
@@ -31,8 +32,9 @@ import {
 const TYPE_BADGE: Record<string, string> = {
   mcq: "text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/30",
   cloze: "text-sky-700 dark:text-sky-400 bg-sky-500/10 border-sky-500/30",
+  dialogue: "text-purple-700 dark:text-purple-400 bg-purple-500/10 border-purple-500/30",
 };
-const TYPE_LABEL: Record<string, string> = { mcq: "Trắc nghiệm", cloze: "Điền câu" };
+const TYPE_LABEL: Record<string, string> = { mcq: "Trắc nghiệm", cloze: "Điền câu", dialogue: "Đối thoại" };
 
 /** Hiển thị prompt cloze: thay {{n}} bằng ô trống. */
 function displayPrompt(q: BankQuestion): string {
@@ -52,9 +54,12 @@ export function QuestionBankPage() {
   const [exercises, setExercises] = useState<ExerciseListItem[]>([]);
 
   const [search, setSearch] = useState("");
-  const [type, setType] = useState<"" | "mcq" | "cloze">("");
+  const [type, setType] = useState<"" | "mcq" | "cloze" | "dialogue">("");
   const [exerciseId, setExerciseId] = useState<string>("");
   const [page, setPage] = useState(1);
+  // Phạm vi lộ trình đến từ trang thư mục: /exercises/questions?collection=slug
+  const [searchParams] = useSearchParams();
+  const collection = searchParams.get("collection") || undefined;
 
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [composeOpen, setComposeOpen] = useState(false);
@@ -76,8 +81,9 @@ export function QuestionBankPage() {
       q: debouncedSearch || undefined,
       type: type || undefined,
       exerciseId: exerciseId ? Number(exerciseId) : undefined,
+      collection,
     }),
-    [debouncedSearch, type, exerciseId]
+    [debouncedSearch, type, exerciseId, collection]
   );
 
   const queryKey = JSON.stringify([filterQuery, page, reloadTick]);
@@ -132,11 +138,21 @@ export function QuestionBankPage() {
     <div className="h-screen flex flex-col bg-slate-100 dark:bg-[#0b1120] text-slate-900 dark:text-slate-100">
       {/* Header */}
       <header className="relative h-16 flex items-center justify-between gap-3 pl-16 pr-4 md:px-6 shrink-0 border-b border-slate-300/60 dark:border-slate-800/60">
-        <div className="min-w-0">
-          <h1 className="text-[15px] font-semibold text-slate-900 dark:text-slate-100 truncate">Ngân hàng câu hỏi</h1>
-          <p className="hidden sm:block text-[11px] text-slate-500">
-            Một câu nằm được trong nhiều đề — tick chọn hoặc lọc rồi trộn thành đề mới
-          </p>
+        <div className="flex items-center gap-3 min-w-0">
+          <Link
+            to={collection ? `/exercises/c/${collection}` : "/exercises"}
+            className="flex items-center justify-center w-9 h-9 shrink-0 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Link>
+          <div className="min-w-0">
+            <h1 className="text-[15px] font-semibold text-slate-900 dark:text-slate-100 truncate">Ngân hàng câu hỏi</h1>
+            <p className="hidden sm:block text-[11px] text-slate-500">
+              {collection
+                ? `Câu trong lộ trình "${collection}" — tick chọn rồi trộn đề`
+                : "Một câu nằm được trong nhiều đề — tick chọn hoặc lọc rồi trộn thành đề mới"}
+            </p>
+          </div>
         </div>
         <ApiSettings onSaved={() => setReloadTick(t => t + 1)} />
       </header>
@@ -159,12 +175,13 @@ export function QuestionBankPage() {
             <div className="flex flex-wrap items-center gap-2">
               <select
                 value={type}
-                onChange={e => { setType(e.target.value as "" | "mcq" | "cloze"); setPage(1); }}
+                onChange={e => { setType(e.target.value as "" | "mcq" | "cloze" | "dialogue"); setPage(1); }}
                 className="rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:border-blue-500 dark:focus:border-blue-500"
               >
                 <option value="">Mọi loại câu</option>
                 <option value="mcq">Trắc nghiệm</option>
                 <option value="cloze">Điền câu</option>
+                <option value="dialogue">Đối thoại</option>
               </select>
               <select
                 value={exerciseId}

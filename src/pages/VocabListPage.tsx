@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import {
+  ArrowLeft,
   Search,
   Star,
   Flame,
@@ -25,7 +27,7 @@ import {
   POS_VALUES,
   type Word,
   type Pagination,
-  type TagWithCounts,
+  type Tag,
 } from "@/services/vocabApi";
 
 const POS_BADGE: Record<string, string> = {
@@ -46,7 +48,7 @@ interface QueryResult {
 
 export function VocabListPage() {
   const [result, setResult] = useState<QueryResult | null>(null);
-  const [tags, setTags] = useState<TagWithCounts[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
   const [reloadTick, setReloadTick] = useState(0);
   const [tagsTick, setTagsTick] = useState(0);
   const [editingTagsOf, setEditingTagsOf] = useState<number | null>(null);
@@ -71,7 +73,13 @@ export function VocabListPage() {
     return () => window.clearTimeout(debounceRef.current);
   }, [search]);
 
-  const queryKey = JSON.stringify([debouncedSearch, tag, pos, onlyFavorite, onlyDifficult, page, reloadTick]);
+  // Phạm vi lộ trình khi mở từ trang bộ từ: /vocab/words?collection=slug
+  const [searchParams] = useSearchParams();
+  const collection = searchParams.get("collection") || undefined;
+
+  const queryKey = JSON.stringify([
+    debouncedSearch, tag, pos, onlyFavorite, onlyDifficult, page, reloadTick, collection,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -81,6 +89,8 @@ export function VocabListPage() {
       pos: pos || undefined,
       favorite: onlyFavorite || undefined,
       difficult: onlyDifficult || undefined,
+      collection,
+      includeSub: collection ? true : undefined,
       page,
       limit: 20,
     })
@@ -94,10 +104,10 @@ export function VocabListPage() {
     return () => {
       cancelled = true;
     };
-  }, [debouncedSearch, tag, pos, onlyFavorite, onlyDifficult, page, reloadTick, queryKey]);
+  }, [debouncedSearch, tag, pos, onlyFavorite, onlyDifficult, page, reloadTick, collection, queryKey]);
 
   useEffect(() => {
-    void listTags().then(setTags).catch(() => {});
+    void listTags("word").then(setTags).catch(() => {});
   }, [tagsTick]);
 
   // Loading is derived: the stored result doesn't match the current query yet.
@@ -107,7 +117,7 @@ export function VocabListPage() {
   const error = !loading ? result?.error ?? null : null;
   const load = useCallback(() => setReloadTick(t => t + 1), []);
 
-  const wordTags = useMemo(() => tags.filter(t => t.wordCount > 0), [tags]);
+  const wordTags = tags;
 
   const saveWordTags = async (word: Word, newTags: string[]) => {
     const updated = await setWordTags(word.id, newTags);
@@ -131,11 +141,21 @@ export function VocabListPage() {
     <div className="h-screen flex flex-col bg-slate-100 dark:bg-[#0b1120] text-slate-900 dark:text-slate-100">
       {/* Header */}
       <header className="relative h-16 flex items-center justify-between gap-3 pl-16 pr-4 md:px-6 shrink-0 border-b border-slate-300/60 dark:border-slate-800/60">
-        <div className="min-w-0">
-          <h1 className="text-[15px] font-semibold text-slate-900 dark:text-slate-100 truncate">Từ vựng</h1>
-          <p className="hidden sm:block text-[11px] text-slate-500">
-            Kho từ vựng từ vocab-api — nhấn 🔊 để nghe phát âm
-          </p>
+        <div className="flex items-center gap-3 min-w-0">
+          <Link
+            to={collection ? `/vocab/c/${collection}` : "/vocab"}
+            className="flex items-center justify-center w-9 h-9 shrink-0 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Link>
+          <div className="min-w-0">
+            <h1 className="text-[15px] font-semibold text-slate-900 dark:text-slate-100 truncate">
+              {collection ? `Từ trong "${collection}"` : "Tất cả từ vựng"}
+            </h1>
+            <p className="hidden sm:block text-[11px] text-slate-500">
+              Kho từ vựng từ vocab-api — nhấn 🔊 để nghe phát âm
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <TagManager
@@ -173,7 +193,7 @@ export function VocabListPage() {
                 <option value="">Tất cả tag</option>
                 {wordTags.map(t => (
                   <option key={t.id} value={t.name}>
-                    {t.name} ({t.wordCount})
+                    {t.label || t.name} ({t.usageCount})
                   </option>
                 ))}
               </select>
