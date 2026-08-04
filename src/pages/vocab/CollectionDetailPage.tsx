@@ -36,7 +36,8 @@ import {
  * và các chế độ luyện/ôn đã giới hạn sẵn phạm vi collection này.
  */
 export function CollectionDetailPage() {
-  const { slug } = useParams<{ slug: string }>();
+  // Splat route: slug có thể chứa "/" (vd "thpt-2026/idioms").
+  const slug = useParams()["*"];
   const navigate = useNavigate();
   const [data, setData] = useState<{
     key: string;

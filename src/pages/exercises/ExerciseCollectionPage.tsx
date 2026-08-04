@@ -28,7 +28,8 @@ import {
 
 /** Bên trong một lộ trình bài tập: thư mục con + danh sách đề. */
 export function ExerciseCollectionPage() {
-  const { slug } = useParams<{ slug: string }>();
+  // Splat route: slug có thể chứa "/" (vd "thpt-2026/idioms").
+  const slug = useParams()["*"];
   const navigate = useNavigate();
   const [reloadTick, setReloadTick] = useState(0);
   const [dialog, setDialog] = useState<null | "edit" | "child" | "add-exercises">(null);

@@ -9,6 +9,7 @@ import { IpaExplorerPage } from '@/pages/IpaExplorerPage'
 import { IpaComparePage } from '@/pages/IpaComparePage'
 import { IpaDetailPage } from '@/pages/IpaDetailPage'
 import { ChunkReaderPage } from '@/pages/ChunkReaderPage'
+import { NotFoundPage } from '@/pages/NotFoundPage'
 // Từ vựng
 import { VocabHomePage } from '@/pages/vocab/VocabHomePage'
 import { CollectionDetailPage } from '@/pages/vocab/CollectionDetailPage'
@@ -48,20 +49,24 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/vocab/words" element={<VocabListPage />} />
             <Route path="/vocab/practice" element={<PracticePage />} />
             <Route path="/vocab/review" element={<ReviewPage />} />
-            <Route path="/vocab/c/:slug" element={<CollectionDetailPage />} />
+            {/* splat: slug có thể dạng đường dẫn, vd "thpt-2026/idioms" */}
+            <Route path="/vocab/c/*" element={<CollectionDetailPage />} />
 
             {/* Bài tập — cũng duyệt theo thư mục */}
             <Route path="/exercises" element={<ExerciseHomePage />} />
             <Route path="/exercises/all" element={<ExerciseListPage />} />
             <Route path="/exercises/questions" element={<QuestionBankPage />} />
             <Route path="/exercises/upload" element={<ExerciseUploadPage />} />
-            <Route path="/exercises/c/:slug" element={<ExerciseCollectionPage />} />
+            <Route path="/exercises/c/*" element={<ExerciseCollectionPage />} />
             <Route path="/exercises/:id" element={<ExerciseDoPage />} />
 
             {/* Đường dẫn cũ */}
             <Route path="/practice" element={<Navigate to="/vocab/practice" replace />} />
             <Route path="/review" element={<Navigate to="/vocab/review" replace />} />
             <Route path="/questions" element={<Navigate to="/exercises/questions" replace />} />
+
+            {/* Không khớp route nào — hiện lối ra thay vì trang trắng */}
+            <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Routes>
       </HashRouter>
