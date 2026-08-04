@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { List, Zap, Repeat, Layers, X } from "lucide-react";
+import { List, Zap, Repeat, Layers, X, FolderPlus } from "lucide-react";
 import { ApiSettings } from "@/components/ApiSettings";
 import { VoiceSettings } from "@/components/ipa/VoiceSettings";
 import { TagManager } from "@/components/TagManager";
 import { FolderBrowser } from "@/components/collections/FolderBrowser";
+import { CollectionFormDialog } from "@/components/collections/CollectionFormDialog";
 
 /**
  * Màn hình gốc của Từ vựng: duyệt lộ trình như thư mục (theo tag nhóm lớn),
@@ -12,6 +13,8 @@ import { FolderBrowser } from "@/components/collections/FolderBrowser";
  */
 export function VocabHomePage() {
   const [selected, setSelected] = useState<number[]>([]);
+  const [creating, setCreating] = useState(false);
+  const [reloadTick, setReloadTick] = useState(0);
   const navigate = useNavigate();
 
   const toggle = (id: number) =>
@@ -33,6 +36,13 @@ export function VocabHomePage() {
           <TagManager />
           <VoiceSettings />
           <ApiSettings />
+          <button
+            onClick={() => setCreating(true)}
+            className="flex items-center gap-2 px-3 lg:px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-500 active:scale-95 transition-all whitespace-nowrap"
+          >
+            <FolderPlus className="w-4 h-4 shrink-0" />
+            <span className="hidden md:inline">Tạo lộ trình</span>
+          </button>
         </div>
       </header>
 
@@ -47,6 +57,7 @@ export function VocabHomePage() {
 
           {/* Thư mục lộ trình */}
           <FolderBrowser
+            key={reloadTick}
             basePath="/vocab/c"
             countOf={n => n.totalWordCount}
             unitLabel="từ"
@@ -81,6 +92,16 @@ export function VocabHomePage() {
             </button>
           </div>
         </footer>
+      )}
+
+      {creating && (
+        <CollectionFormDialog
+          onClose={() => setCreating(false)}
+          onSaved={c => {
+            setReloadTick(t => t + 1);
+            navigate(`/vocab/c/${c.slug || c.id}`);
+          }}
+        />
       )}
     </div>
   );

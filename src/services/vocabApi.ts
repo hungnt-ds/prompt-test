@@ -447,6 +447,89 @@ export async function getCollection(idOrSlug: string | number): Promise<Collecti
   return (await request<Collection>(`/api/collections/${idOrSlug}`)).data;
 }
 
+export interface CollectionBody {
+  slug: string;
+  title: string;
+  description?: string | null;
+  parentId?: number | null;
+  /** Độ khó 1-5 */
+  difficulty?: number | null;
+  position?: number;
+  tags?: string[];
+}
+
+export async function createCollection(body: CollectionBody): Promise<Collection> {
+  return (
+    await request<Collection>('/api/collections', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  ).data;
+}
+
+export async function updateCollection(id: number, body: Partial<CollectionBody>): Promise<Collection> {
+  return (
+    await request<Collection>(`/api/collections/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  ).data;
+}
+
+/** Xóa cả nhánh con — từ vựng/bài tập bên trong KHÔNG bị xóa, chỉ gỡ liên kết. */
+export async function deleteCollection(id: number): Promise<void> {
+  await request<{ deleted: boolean }>(`/api/collections/${id}`, { method: 'DELETE' });
+}
+
+/** Chuyển sang cha khác. parentId = null để đưa ra cấp gốc. */
+export async function moveCollection(id: number, parentId: number | null, position?: number): Promise<Collection> {
+  return (
+    await request<Collection>(`/api/collections/${id}/move`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parentId, position }),
+    })
+  ).data;
+}
+
+export async function setCollectionTags(id: number, tags: string[]): Promise<Collection> {
+  return (
+    await request<Collection>(`/api/collections/${id}/tags`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tags }),
+    })
+  ).data;
+}
+
+async function membership(
+  id: number,
+  kind: 'words' | 'exercises',
+  method: 'POST' | 'DELETE',
+  ids: number[]
+): Promise<Collection> {
+  const key = kind === 'words' ? 'wordIds' : 'exerciseIds';
+  return (
+    await request<Collection>(`/api/collections/${id}/${kind}`, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [key]: ids }),
+    })
+  ).data;
+}
+
+export const addWordsToCollection = (id: number, wordIds: number[]) =>
+  membership(id, 'words', 'POST', wordIds);
+/** Gỡ khỏi collection — không xóa từ. */
+export const removeWordsFromCollection = (id: number, wordIds: number[]) =>
+  membership(id, 'words', 'DELETE', wordIds);
+export const addExercisesToCollection = (id: number, exerciseIds: number[]) =>
+  membership(id, 'exercises', 'POST', exerciseIds);
+export const removeExercisesFromCollection = (id: number, exerciseIds: number[]) =>
+  membership(id, 'exercises', 'DELETE', exerciseIds);
+
 /** Tên tag được server tự chuẩn hóa về lowercase-kebab. 409 nếu trùng. */
 export async function createTag(name: string): Promise<Tag> {
   return (

@@ -1,10 +1,16 @@
-import { Link } from "react-router-dom";
-import { List, Database, Upload, ClipboardList } from "lucide-react";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { List, Database, Upload, ClipboardList, FolderPlus } from "lucide-react";
 import { ApiSettings } from "@/components/ApiSettings";
 import { FolderBrowser } from "@/components/collections/FolderBrowser";
+import { CollectionFormDialog } from "@/components/collections/CollectionFormDialog";
 
 /** Màn hình gốc của Bài tập: duyệt lộ trình như thư mục + lối tắt. */
 export function ExerciseHomePage() {
+  const [creating, setCreating] = useState(false);
+  const [reloadTick, setReloadTick] = useState(0);
+  const navigate = useNavigate();
+
   return (
     <div className="h-screen flex flex-col bg-slate-100 dark:bg-[#0b1120] text-slate-900 dark:text-slate-100">
       <header className="relative h-16 flex items-center justify-between gap-3 pl-16 pr-4 md:px-6 shrink-0 border-b border-slate-300/60 dark:border-slate-800/60">
@@ -14,7 +20,16 @@ export function ExerciseHomePage() {
             Chọn lộ trình để làm bài, hoặc vào ngân hàng câu để trộn đề
           </p>
         </div>
-        <ApiSettings />
+        <div className="flex items-center gap-1 shrink-0">
+          <ApiSettings />
+          <button
+            onClick={() => setCreating(true)}
+            className="flex items-center gap-2 px-3 lg:px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-500 active:scale-95 transition-all whitespace-nowrap"
+          >
+            <FolderPlus className="w-4 h-4 shrink-0" />
+            <span className="hidden md:inline">Tạo lộ trình</span>
+          </button>
+        </div>
       </header>
 
       <div className="flex-1 overflow-y-auto scrollbar-thin">
@@ -26,12 +41,23 @@ export function ExerciseHomePage() {
           </div>
 
           <FolderBrowser
+            key={reloadTick}
             basePath="/exercises/c"
             countOf={n => n.totalExerciseCount}
             unitLabel="bài tập"
           />
         </div>
       </div>
+
+      {creating && (
+        <CollectionFormDialog
+          onClose={() => setCreating(false)}
+          onSaved={c => {
+            setReloadTick(t => t + 1);
+            navigate(`/exercises/c/${c.slug || c.id}`);
+          }}
+        />
+      )}
     </div>
   );
 }

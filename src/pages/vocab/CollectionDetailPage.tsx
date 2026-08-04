@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   Folder,
+  FolderPlus,
   Loader2,
   AlertTriangle,
   Zap,
@@ -10,15 +11,21 @@ import {
   List,
   Volume2,
   ChevronRight,
+  Plus,
+  Pencil,
+  Minus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSpeech } from "@/hooks/useSpeech";
 import { ApiSettings } from "@/components/ApiSettings";
 import { VoiceSettings } from "@/components/ipa/VoiceSettings";
+import { CollectionFormDialog } from "@/components/collections/CollectionFormDialog";
+import { AddItemsDialog } from "@/components/collections/AddItemsDialog";
 import {
   getCollection,
   getCollectionTree,
   listWords,
+  removeWordsFromCollection,
   type Collection,
   type CollectionTreeNode,
   type Word,
@@ -39,6 +46,8 @@ export function CollectionDetailPage() {
     total: number;
     error?: string;
   } | null>(null);
+  const [reloadTick, setReloadTick] = useState(0);
+  const [dialog, setDialog] = useState<null | "edit" | "child" | "add-words">(null);
   const { speak, speaking, supported } = useSpeech();
 
   useEffect(() => {
@@ -54,7 +63,7 @@ export function CollectionDetailPage() {
         if (cancelled) return;
         const root = tree.find(n => n.slug === collection.slug || n.id === collection.id);
         setData({
-          key: slug,
+          key: `${slug}:${reloadTick}`,
           collection,
           children: root?.children ?? [],
           words: wordPage.words,
@@ -62,16 +71,34 @@ export function CollectionDetailPage() {
         });
       } catch (e) {
         if (!cancelled)
-          setData({ key: slug, children: [], words: [], total: 0, error: e instanceof Error ? e.message : String(e) });
+          setData({
+            key: `${slug}:${reloadTick}`,
+            children: [],
+            words: [],
+            total: 0,
+            error: e instanceof Error ? e.message : String(e),
+          });
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [slug, reloadTick]);
 
-  const loading = !data || data.key !== slug;
+  const loading = !data || data.key !== `${slug}:${reloadTick}`;
   const collection = data?.collection;
+  const reload = () => setReloadTick(t => t + 1);
+
+  const removeWord = async (wordId: number) => {
+    if (!collection) return;
+    // Optimistic: bỏ khỏi danh sách ngay, hỏng thì tải lại.
+    setData(d => d && { ...d, words: d.words.filter(w => w.id !== wordId), total: d.total - 1 });
+    try {
+      await removeWordsFromCollection(collection.id, [wordId]);
+    } catch {
+      reload();
+    }
+  };
 
   const goPractice = () => navigate(`/vocab/practice?collections=${collection?.id ?? ""}`);
   const goReview = () => navigate("/vocab/review");
@@ -105,8 +132,24 @@ export function CollectionDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={() => setDialog("edit")}
+            disabled={!collection}
+            title="Sửa / xóa lộ trình"
+            className="flex items-center justify-center w-10 h-10 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors disabled:opacity-40"
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
           <VoiceSettings />
           <ApiSettings />
+          <button
+            onClick={() => setDialog("add-words")}
+            disabled={!collection}
+            className="flex items-center gap-2 px-3 lg:px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-500 active:scale-95 transition-all whitespace-nowrap disabled:opacity-40"
+          >
+            <Plus className="w-4 h-4 shrink-0" />
+            <span className="hidden md:inline">Thêm từ</span>
+          </button>
         </div>
       </header>
 
@@ -165,9 +208,21 @@ export function CollectionDetailPage() {
               </div>
 
               {/* Thư mục con */}
-              {data.children.length > 0 && (
-                <section className="space-y-3">
-                  <h2 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Thư mục con</h2>
+              <section className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <h2 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">
+                    Thư mục con ({data.children.length})
+                  </h2>
+                  <div className="flex-1 h-px bg-slate-300/60 dark:bg-slate-800/60" />
+                  <button
+                    onClick={() => setDialog("child")}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    <FolderPlus className="w-3.5 h-3.5" />
+                    Tạo thư mục con
+                  </button>
+                </div>
+                {data.children.length > 0 && (
                   <div className="grid gap-2 sm:grid-cols-2">
                     {data.children.map(child => (
                       <Link
@@ -183,8 +238,8 @@ export function CollectionDetailPage() {
                       </Link>
                     ))}
                   </div>
-                </section>
-              )}
+                )}
+              </section>
 
               {/* Từ trong bộ */}
               <section className="space-y-3">
@@ -195,15 +250,22 @@ export function CollectionDetailPage() {
                   <div className="flex-1 h-px bg-slate-300/60 dark:bg-slate-800/60" />
                 </div>
                 {data.words.length === 0 ? (
-                  <p className="py-8 text-center text-sm text-slate-400 dark:text-slate-600 italic">
-                    Bộ này chưa có từ nào.
-                  </p>
+                  <div className="py-8 text-center space-y-2">
+                    <p className="text-sm text-slate-400 dark:text-slate-600 italic">Bộ này chưa có từ nào.</p>
+                    <button
+                      onClick={() => setDialog("add-words")}
+                      className="mx-auto flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-500 transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Thêm từ vào bộ này
+                    </button>
+                  </div>
                 ) : (
                   <div className="grid gap-2 sm:grid-cols-2">
                     {data.words.map(word => (
                       <div
                         key={word.id}
-                        className="rounded-lg border border-slate-300/60 dark:border-slate-800/60 bg-white dark:bg-slate-950/40 px-3 py-2.5 space-y-1"
+                        className="group rounded-lg border border-slate-300/60 dark:border-slate-800/60 bg-white dark:bg-slate-950/40 px-3 py-2.5 space-y-1"
                       >
                         <div className="flex items-baseline gap-2 flex-wrap">
                           <span className="text-sm font-bold">{word.headword}</span>
@@ -221,6 +283,13 @@ export function CollectionDetailPage() {
                               <Volume2 className="w-3.5 h-3.5" />
                             </button>
                           )}
+                          <button
+                            onClick={() => void removeWord(word.id)}
+                            title="Gỡ khỏi bộ này (không xóa từ)"
+                            className="ml-auto text-slate-300 dark:text-slate-700 hover:text-red-500 transition-colors"
+                          >
+                            <Minus className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                         {word.senses[0] && (
                           <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2">
@@ -239,6 +308,36 @@ export function CollectionDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Dialogs */}
+      {dialog === "edit" && collection && (
+        <CollectionFormDialog
+          editing={collection}
+          onClose={() => setDialog(null)}
+          onSaved={saved => {
+            if (saved.slug !== collection.slug) navigate(`/vocab/c/${saved.slug}`, { replace: true });
+            else reload();
+          }}
+          onDeleted={() => navigate("/vocab", { replace: true })}
+        />
+      )}
+      {dialog === "child" && collection && (
+        <CollectionFormDialog
+          parentId={collection.id}
+          parentTitle={collection.title}
+          onClose={() => setDialog(null)}
+          onSaved={() => reload()}
+        />
+      )}
+      {dialog === "add-words" && collection && (
+        <AddItemsDialog
+          collectionId={collection.id}
+          collectionTitle={collection.title}
+          kind="words"
+          onClose={() => setDialog(null)}
+          onAdded={() => reload()}
+        />
+      )}
     </div>
   );
 }

@@ -1,19 +1,26 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   Folder,
+  FolderPlus,
   Loader2,
   AlertTriangle,
   ListChecks,
   ChevronRight,
   Shuffle,
+  Plus,
+  Pencil,
+  Minus,
 } from "lucide-react";
 import { ApiSettings } from "@/components/ApiSettings";
+import { CollectionFormDialog } from "@/components/collections/CollectionFormDialog";
+import { AddItemsDialog } from "@/components/collections/AddItemsDialog";
 import {
   getCollection,
   getCollectionTree,
   listExercises,
+  removeExercisesFromCollection,
   type Collection,
   type CollectionTreeNode,
   type ExerciseListItem,
@@ -22,6 +29,9 @@ import {
 /** Bên trong một lộ trình bài tập: thư mục con + danh sách đề. */
 export function ExerciseCollectionPage() {
   const { slug } = useParams<{ slug: string }>();
+  const navigate = useNavigate();
+  const [reloadTick, setReloadTick] = useState(0);
+  const [dialog, setDialog] = useState<null | "edit" | "child" | "add-exercises">(null);
   const [data, setData] = useState<{
     key: string;
     collection?: Collection;
@@ -44,7 +54,7 @@ export function ExerciseCollectionPage() {
         if (cancelled) return;
         const root = tree.find(n => n.slug === collection.slug || n.id === collection.id);
         setData({
-          key: slug,
+          key: `${slug}:${reloadTick}`,
           collection,
           children: root?.children ?? [],
           exercises: page.exercises,
@@ -53,7 +63,7 @@ export function ExerciseCollectionPage() {
       } catch (e) {
         if (!cancelled)
           setData({
-            key: slug,
+            key: `${slug}:${reloadTick}`,
             children: [],
             exercises: [],
             total: 0,
@@ -64,10 +74,21 @@ export function ExerciseCollectionPage() {
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [slug, reloadTick]);
 
-  const loading = !data || data.key !== slug;
+  const loading = !data || data.key !== `${slug}:${reloadTick}`;
   const collection = data?.collection;
+  const reload = () => setReloadTick(t => t + 1);
+
+  const removeExercise = async (id: number) => {
+    if (!collection) return;
+    setData(d => d && { ...d, exercises: d.exercises.filter(e => e.id !== id), total: d.total - 1 });
+    try {
+      await removeExercisesFromCollection(collection.id, [id]);
+    } catch {
+      reload();
+    }
+  };
 
   return (
     <div className="h-screen flex flex-col bg-slate-100 dark:bg-[#0b1120] text-slate-900 dark:text-slate-100">
@@ -96,7 +117,25 @@ export function ExerciseCollectionPage() {
             )}
           </div>
         </div>
-        <ApiSettings />
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={() => setDialog("edit")}
+            disabled={!collection}
+            title="Sửa / xóa lộ trình"
+            className="flex items-center justify-center w-10 h-10 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors disabled:opacity-40"
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+          <ApiSettings />
+          <button
+            onClick={() => setDialog("add-exercises")}
+            disabled={!collection}
+            className="flex items-center gap-2 px-3 lg:px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-500 active:scale-95 transition-all whitespace-nowrap disabled:opacity-40"
+          >
+            <Plus className="w-4 h-4 shrink-0" />
+            <span className="hidden md:inline">Thêm bài tập</span>
+          </button>
+        </div>
       </header>
 
       <div className="flex-1 overflow-y-auto scrollbar-thin">
@@ -130,9 +169,21 @@ export function ExerciseCollectionPage() {
                 </span>
               </Link>
 
-              {data.children.length > 0 && (
-                <section className="space-y-3">
-                  <h2 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Thư mục con</h2>
+              <section className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <h2 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">
+                    Thư mục con ({data.children.length})
+                  </h2>
+                  <div className="flex-1 h-px bg-slate-300/60 dark:bg-slate-800/60" />
+                  <button
+                    onClick={() => setDialog("child")}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    <FolderPlus className="w-3.5 h-3.5" />
+                    Tạo thư mục con
+                  </button>
+                </div>
+                {data.children.length > 0 && (
                   <div className="grid gap-2 sm:grid-cols-2">
                     {data.children.map(child => (
                       <Link
@@ -148,8 +199,8 @@ export function ExerciseCollectionPage() {
                       </Link>
                     ))}
                   </div>
-                </section>
-              )}
+                )}
+              </section>
 
               <section className="space-y-3">
                 <div className="flex items-center gap-3">
@@ -159,23 +210,40 @@ export function ExerciseCollectionPage() {
                   <div className="flex-1 h-px bg-slate-300/60 dark:bg-slate-800/60" />
                 </div>
                 {data.exercises.length === 0 ? (
-                  <p className="py-8 text-center text-sm text-slate-400 dark:text-slate-600 italic">
-                    Lộ trình này chưa có bài tập nào.
-                  </p>
+                  <div className="py-8 text-center space-y-2">
+                    <p className="text-sm text-slate-400 dark:text-slate-600 italic">
+                      Lộ trình này chưa có bài tập nào.
+                    </p>
+                    <button
+                      onClick={() => setDialog("add-exercises")}
+                      className="mx-auto flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-500 transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Thêm bài tập vào lộ trình
+                    </button>
+                  </div>
                 ) : (
                   <div className="grid gap-2 sm:grid-cols-2">
                     {data.exercises.map(ex => (
-                      <Link
+                      <div
                         key={ex.id}
-                        to={`/exercises/${ex.id}`}
-                        className="rounded-xl border border-slate-300/60 dark:border-slate-800/60 bg-white dark:bg-slate-950/40 p-3.5 space-y-2 hover:border-blue-500/60 transition-colors"
+                        className="relative rounded-xl border border-slate-300/60 dark:border-slate-800/60 bg-white dark:bg-slate-950/40 hover:border-blue-500/60 transition-colors"
                       >
-                        <h3 className="text-sm font-bold leading-snug line-clamp-2">{ex.title}</h3>
-                        <span className="flex items-center gap-1 text-[11px] text-slate-500">
-                          <ListChecks className="w-3 h-3" />
-                          {ex.questionCount} câu
-                        </span>
-                      </Link>
+                        <Link to={`/exercises/${ex.id}`} className="block p-3.5 space-y-2 pr-8">
+                          <h3 className="text-sm font-bold leading-snug line-clamp-2">{ex.title}</h3>
+                          <span className="flex items-center gap-1 text-[11px] text-slate-500">
+                            <ListChecks className="w-3 h-3" />
+                            {ex.questionCount} câu
+                          </span>
+                        </Link>
+                        <button
+                          onClick={() => void removeExercise(ex.id)}
+                          title="Gỡ khỏi lộ trình (không xóa bài tập)"
+                          className="absolute top-3 right-3 text-slate-300 dark:text-slate-700 hover:text-red-500 transition-colors"
+                        >
+                          <Minus className="w-4 h-4" />
+                        </button>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -184,6 +252,36 @@ export function ExerciseCollectionPage() {
           )}
         </div>
       </div>
+
+      {/* Dialogs */}
+      {dialog === "edit" && collection && (
+        <CollectionFormDialog
+          editing={collection}
+          onClose={() => setDialog(null)}
+          onSaved={saved => {
+            if (saved.slug !== collection.slug) navigate(`/exercises/c/${saved.slug}`, { replace: true });
+            else reload();
+          }}
+          onDeleted={() => navigate("/exercises", { replace: true })}
+        />
+      )}
+      {dialog === "child" && collection && (
+        <CollectionFormDialog
+          parentId={collection.id}
+          parentTitle={collection.title}
+          onClose={() => setDialog(null)}
+          onSaved={() => reload()}
+        />
+      )}
+      {dialog === "add-exercises" && collection && (
+        <AddItemsDialog
+          collectionId={collection.id}
+          collectionTitle={collection.title}
+          kind="exercises"
+          onClose={() => setDialog(null)}
+          onAdded={() => reload()}
+        />
+      )}
     </div>
   );
 }
