@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { List, Database, Upload, ClipboardList, FolderPlus } from "lucide-react";
+import { List, Database, Upload, ClipboardList, FolderPlus, FilePlus2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { ApiSettings } from "@/components/ApiSettings";
 import { FolderBrowser } from "@/components/collections/FolderBrowser";
 import { CollectionFormDialog } from "@/components/collections/CollectionFormDialog";
@@ -34,7 +35,8 @@ export function ExerciseHomePage() {
 
       <div className="flex-1 overflow-y-auto scrollbar-thin">
         <div className="max-w-5xl mx-auto p-4 md:p-8 space-y-6">
-          <div className="grid gap-2 sm:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <ShortcutCard to="/exercises/new" icon={FilePlus2} title="Soạn đề mới" desc="Trắc nghiệm, điền câu, đối thoại" highlight />
             <ShortcutCard to="/exercises/all" icon={List} title="Tất cả bài tập" desc="Danh sách có lọc, tìm kiếm" />
             <ShortcutCard to="/exercises/questions" icon={Database} title="Ngân hàng câu hỏi" desc="Duyệt câu, trộn đề mới" />
             <ShortcutCard to="/exercises/upload" icon={Upload} title="Import .md" desc="Nạp từ vựng &amp; bài tập" />
@@ -67,16 +69,23 @@ function ShortcutCard({
   icon: Icon,
   title,
   desc,
+  highlight,
 }: {
   to: string;
   icon: typeof ClipboardList;
   title: string;
   desc: string;
+  highlight?: boolean;
 }) {
   return (
     <Link
       to={to}
-      className="flex items-start gap-3 rounded-xl border border-slate-300/60 dark:border-slate-800/60 bg-white dark:bg-slate-950/40 p-3.5 hover:border-blue-500/60 transition-colors"
+      className={cn(
+        "flex items-start gap-3 rounded-xl border p-3.5 transition-colors",
+        highlight
+          ? "border-blue-500/50 bg-blue-500/5 hover:bg-blue-500/10"
+          : "border-slate-300/60 dark:border-slate-800/60 bg-white dark:bg-slate-950/40 hover:border-blue-500/60"
+      )}
     >
       <Icon className="w-5 h-5 shrink-0 text-blue-600 dark:text-blue-400 mt-0.5" />
       <span className="min-w-0">

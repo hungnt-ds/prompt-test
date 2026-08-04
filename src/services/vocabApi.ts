@@ -216,14 +216,22 @@ interface Envelope<T> {
   data: T;
   pagination?: Pagination;
   errorCode?: string;
-  errors?: { line: number; message: string }[];
+  errors?: ApiFieldError[];
+}
+
+/** Lỗi parse MD có `line`; lỗi validate JSON có `path` (vd ["questions",0,"options"]). */
+export interface ApiFieldError {
+  message: string;
+  line?: number;
+  path?: (string | number)[];
+  code?: string;
 }
 
 export class ApiError extends Error {
   code: number;
   errorCode?: string;
-  errors?: { line: number; message: string }[];
-  constructor(code: number, message: string, errorCode?: string, errors?: { line: number; message: string }[]) {
+  errors?: ApiFieldError[];
+  constructor(code: number, message: string, errorCode?: string, errors?: ApiFieldError[]) {
     super(message);
     this.code = code;
     this.errorCode = errorCode;
@@ -329,6 +337,69 @@ export async function listExercises(
 
 export async function getExercise(id: number): Promise<Exercise> {
   return (await request<Exercise>(`/api/exercises/${id}`)).data;
+}
+
+// ---------- Soạn đề bằng JSON ----------
+
+export interface McqOptionInput {
+  text: string;
+  isCorrect?: boolean;
+}
+export interface McqQuestionInput {
+  type: 'mcq';
+  prompt: string;
+  /** 2-8 lựa chọn, đúng 1 cái isCorrect = true */
+  options: McqOptionInput[];
+  explanation?: string | null;
+}
+export interface ClozeQuestionInput {
+  type: 'cloze';
+  /** Chứa placeholder {{1}}, {{2}}… tương ứng clozeAnswers */
+  prompt: string;
+  clozeAnswers: ClozeAnswer[];
+  explanation?: string | null;
+}
+export interface DialogueQuestionInput {
+  type: 'dialogue';
+  /** Tiêu đề / bối cảnh hội thoại */
+  prompt: string;
+  /** ≥2 lượt, 2-3 người nói, ≥1 lượt hidden */
+  turns: DialogueTurn[];
+  explanation?: string | null;
+}
+export type QuestionInput = McqQuestionInput | ClozeQuestionInput | DialogueQuestionInput;
+
+export interface ExerciseInput {
+  title: string;
+  slug?: string | null;
+  description?: string | null;
+  tags?: string[];
+  questions: QuestionInput[];
+}
+
+export async function createExercise(body: ExerciseInput): Promise<Exercise> {
+  return (
+    await request<Exercise>('/api/exercises', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  ).data;
+}
+
+/** Gửi `questions` là thay TOÀN BỘ bộ câu của đề. */
+export async function updateExercise(id: number, patch: Partial<ExerciseInput>): Promise<Exercise> {
+  return (
+    await request<Exercise>(`/api/exercises/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    })
+  ).data;
+}
+
+export async function deleteExercise(id: number): Promise<void> {
+  await request<{ deleted: boolean }>(`/api/exercises/${id}`, { method: 'DELETE' });
 }
 
 export async function patchExercise(

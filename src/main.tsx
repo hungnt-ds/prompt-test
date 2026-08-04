@@ -21,6 +21,7 @@ import { ExerciseHomePage } from '@/pages/exercises/ExerciseHomePage'
 import { ExerciseCollectionPage } from '@/pages/exercises/ExerciseCollectionPage'
 import { ExerciseListPage } from '@/pages/ExerciseListPage'
 import { ExerciseUploadPage } from '@/pages/ExerciseUploadPage'
+import { ExerciseEditorPage } from '@/pages/exercises/ExerciseEditorPage'
 import { ExerciseDoPage } from '@/pages/ExerciseDoPage'
 import { QuestionBankPage } from '@/pages/QuestionBankPage'
 
@@ -57,6 +58,8 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/exercises/all" element={<ExerciseListPage />} />
             <Route path="/exercises/questions" element={<QuestionBankPage />} />
             <Route path="/exercises/upload" element={<ExerciseUploadPage />} />
+            <Route path="/exercises/new" element={<ExerciseEditorPage />} />
+            <Route path="/exercises/:id/edit" element={<ExerciseEditorPage />} />
             <Route path="/exercises/c/*" element={<ExerciseCollectionPage />} />
             <Route path="/exercises/:id" element={<ExerciseDoPage />} />
 

@@ -9,6 +9,7 @@ import {
   ListChecks,
   ChevronRight,
   Shuffle,
+  FilePlus2,
   Plus,
   Pencil,
   Minus,
@@ -159,16 +160,28 @@ export function ExerciseCollectionPage() {
                 <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{collection.description}</p>
               )}
 
-              <Link
-                to={`/exercises/questions?collection=${collection?.slug ?? ""}`}
-                className="flex items-start gap-3 rounded-xl border border-blue-500/50 bg-blue-500/5 p-3.5 hover:bg-blue-500/10 transition-colors"
-              >
-                <Shuffle className="w-5 h-5 shrink-0 text-blue-600 dark:text-blue-400 mt-0.5" />
-                <span>
-                  <span className="block text-sm font-bold">Trộn đề từ lộ trình này</span>
-                  <span className="block text-[11px] text-slate-500">Chọn câu trong ngân hàng rồi tạo đề mới</span>
-                </span>
-              </Link>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Link
+                  to={`/exercises/new?collection=${collection?.slug ?? ""}`}
+                  className="flex items-start gap-3 rounded-xl border border-blue-500/50 bg-blue-500/5 p-3.5 hover:bg-blue-500/10 transition-colors"
+                >
+                  <FilePlus2 className="w-5 h-5 shrink-0 text-blue-600 dark:text-blue-400 mt-0.5" />
+                  <span>
+                    <span className="block text-sm font-bold">Soạn đề mới ở đây</span>
+                    <span className="block text-[11px] text-slate-500">Tạo xong tự thêm vào lộ trình</span>
+                  </span>
+                </Link>
+                <Link
+                  to={`/exercises/questions?collection=${collection?.slug ?? ""}`}
+                  className="flex items-start gap-3 rounded-xl border border-slate-300/60 dark:border-slate-800/60 bg-white dark:bg-slate-950/40 p-3.5 hover:border-blue-500/60 transition-colors"
+                >
+                  <Shuffle className="w-5 h-5 shrink-0 text-blue-600 dark:text-blue-400 mt-0.5" />
+                  <span>
+                    <span className="block text-sm font-bold">Trộn đề từ lộ trình này</span>
+                    <span className="block text-[11px] text-slate-500">Chọn câu trong ngân hàng rồi tạo đề</span>
+                  </span>
+                </Link>
+              </div>
 
               <section className="space-y-3">
                 <div className="flex items-center gap-3">

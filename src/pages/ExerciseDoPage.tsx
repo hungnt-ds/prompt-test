@@ -8,6 +8,7 @@ import {
   RotateCcw,
   Loader2,
   Volume2,
+  Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSpeech } from "@/hooks/useSpeech";
@@ -196,6 +197,14 @@ function ExerciseRunner({ exercise }: { exercise: Exercise }) {
             </div>
           </div>
         </div>
+        <div className="flex items-center gap-1 shrink-0">
+        <Link
+          to={`/exercises/${exercise.id}/edit`}
+          title="Sửa bộ đề này"
+          className="flex items-center justify-center w-9 h-9 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors"
+        >
+          <Pencil className="w-4 h-4" />
+        </Link>
         <button
           onClick={() => toggleBookmark(exKey)}
           className={cn(
@@ -208,6 +217,7 @@ function ExerciseRunner({ exercise }: { exercise: Exercise }) {
           <Flag className={cn("w-4 h-4", bookmarked && "fill-current")} />
           <span className="hidden md:inline">{bookmarked ? "Sẽ làm lại" : "Làm lại sau"}</span>
         </button>
+        </div>
       </header>
 
       {/* Body */}
