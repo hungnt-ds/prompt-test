@@ -794,7 +794,7 @@ function DictationPractice({
 
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin">
-      <div className="max-w-6xl mx-auto px-4 pb-4 lg:p-6 grid gap-4 lg:gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-start">
+      <div className="max-w-6xl mx-auto px-4 pb-4 lg:p-6 grid grid-cols-[minmax(0,1fr)] gap-4 lg:gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-start">
         {/* ---------- Video — dính đầu màn hình trên điện thoại ---------- */}
         <div className="sticky top-0 z-30 -mx-4 px-4 pt-3 pb-2 space-y-2 bg-slate-100 dark:bg-[#0b1120] border-b border-slate-300/60 dark:border-slate-800/60 lg:static lg:mx-0 lg:p-0 lg:border-0 lg:bg-transparent lg:col-start-1 lg:row-start-1">
           <div className="relative aspect-video rounded-xl overflow-hidden bg-black">

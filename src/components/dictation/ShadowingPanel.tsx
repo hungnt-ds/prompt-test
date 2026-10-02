@@ -258,7 +258,7 @@ export function ShadowingPanel({
   const repeatLabel = settings.repeat === 0 ? "∞" : String(settings.repeat);
 
   return (
-    <div className={cn("flex flex-col gap-3 lg:gap-4", className)}>
+    <div className={cn("min-w-0 flex flex-col gap-3 lg:gap-4", className)}>
       {/* Câu hiện tại */}
       <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-300/60 dark:border-slate-800/60 p-3 md:p-5 space-y-2 md:space-y-3">
         <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
