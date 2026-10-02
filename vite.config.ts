@@ -3,14 +3,16 @@ import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 import { VitePWA } from "vite-plugin-pwa"
 
+const API_TARGET = process.env.API_TARGET || 'https://vocab-api.nguyentanhung2003.workers.dev'
+
 export default defineConfig({
   base: '/prompt-test/',
   server: {
-    // vocab-api hiện chưa trả CORS headers (OPTIONS bị auth chặn 401),
-    // nên khi dev ta proxy same-origin sang localhost:8787.
+    // Dev proxy same-origin /api → vocab-api production (không phải bật Worker local).
+    // Muốn dùng Worker local: API_TARGET=http://localhost:8787 npm run dev
     proxy: {
-      '/api': 'http://localhost:8787',
-      '/health': 'http://localhost:8787',
+      '/api': { target: API_TARGET, changeOrigin: true },
+      '/health': { target: API_TARGET, changeOrigin: true },
     },
   },
   plugins: [

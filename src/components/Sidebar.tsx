@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { Type, AudioLines, ClipboardList, BookOpen, AlignLeft, PanelLeftClose, PanelLeftOpen, Sun, Moon } from "lucide-react";
+import { Type, AudioLines, ClipboardList, BookOpen, AlignLeft, Headphones, PanelLeftClose, PanelLeftOpen, Sun, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -15,6 +15,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Prompt", icon: Type, end: true },
   { to: "/ipa", label: "Học IPA", icon: AudioLines },
   { to: "/chunks", label: "Đọc chunk", icon: AlignLeft },
+  { to: "/dictation", label: "Nghe chép", icon: Headphones },
   { to: "/vocab", label: "Từ vựng", icon: BookOpen },
   { to: "/exercises", label: "Bài tập", icon: ClipboardList },
 ];

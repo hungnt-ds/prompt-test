@@ -885,6 +885,82 @@ export async function runPushReminder(): Promise<PushReminderRun> {
   return (await request<PushReminderRun>('/api/push/run-reminder', { method: 'POST' })).data;
 }
 
+// ---------- Dictation (nghe chép chính tả) ----------
+
+export interface DictationSegmentDto {
+  id: string;
+  start: number;
+  end: number;
+  text: string;
+  translation?: string;
+}
+
+export interface DictationLessonDto {
+  id: string;
+  videoId: string;
+  title: string;
+  segmentCount: number;
+  /** Chỉ có khi lấy chi tiết hoặc list với withSegments */
+  segments?: DictationSegmentDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DictationSegmentStatsDto {
+  best: number;
+  attempts: number;
+  firstScore: number | null;
+  roundScore: number | null;
+  revealed: boolean;
+}
+
+export interface DictationProgressDto {
+  lessonKey: string;
+  segments: Record<string, DictationSegmentStatsDto>;
+  wrongWords: Record<string, number>;
+  timing: Record<string, { start: number; end: number }>;
+  updatedAt: string;
+}
+
+export async function listDictationLessons(withSegments = false): Promise<DictationLessonDto[]> {
+  return (await request<DictationLessonDto[]>(`/api/dictation/lessons${qs({ withSegments: withSegments || undefined })}`)).data;
+}
+
+/** Tạo hoặc ghi đè bài (id do client sinh). */
+export async function putDictationLesson(
+  id: string,
+  body: { videoId: string; title: string; segments: Omit<DictationSegmentDto, 'id'>[] }
+): Promise<DictationLessonDto> {
+  return (
+    await request<DictationLessonDto>(`/api/dictation/lessons/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  ).data;
+}
+
+export async function deleteDictationLesson(id: string): Promise<void> {
+  await request(`/api/dictation/lessons/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export async function listDictationProgress(): Promise<DictationProgressDto[]> {
+  return (await request<DictationProgressDto[]>('/api/dictation/progress')).data;
+}
+
+/** Ghi tiến độ cả bài. applied=false: server đang có bản mới hơn (trả về bản đó). */
+export async function putDictationProgress(
+  lessonKey: string,
+  body: Omit<DictationProgressDto, 'lessonKey'>
+): Promise<{ applied: boolean; progress: DictationProgressDto }> {
+  return (
+    await request<{ applied: boolean; progress: DictationProgressDto }>(
+      `/api/dictation/progress/${encodeURIComponent(lessonKey)}`,
+      { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+    )
+  ).data;
+}
+
 // ---------- Health ----------
 
 export async function checkHealth(): Promise<boolean> {
