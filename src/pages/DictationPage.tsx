@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowLeft,
+  AudioLines,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -17,6 +18,7 @@ import {
   ListRestart,
   Loader2,
   Minus,
+  PencilLine,
   Plus,
   RefreshCw,
   RotateCcw,
@@ -29,6 +31,7 @@ import type { DictationLesson, DictationSegment, LessonProgress, SegmentEvaluati
 import { SAMPLE_DICTATION_LESSONS } from "@/data/sampleDictations";
 import { ApiSettings } from "@/components/ApiSettings";
 import { YouTubePlayer, type YouTubePlayerHandle } from "@/components/dictation/YouTubePlayer";
+import { ShadowingPanel } from "@/components/dictation/ShadowingPanel";
 import {
   createLesson,
   extractVideoId,
@@ -66,6 +69,17 @@ import {
 
 const SPEEDS = [0.5, 0.75, 1, 1.25] as const;
 const SPEED_KEY = "dictation:speed";
+const MODE_KEY = "dictation:mode";
+
+type PracticeMode = "dictation" | "shadow";
+
+const modeTabCls = (active: boolean) =>
+  cn(
+    "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md font-medium transition-colors",
+    active
+      ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm"
+      : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
+  );
 /** Gom nhiều lần bấm kiểm tra liên tiếp thành một lần gửi tiến độ */
 const PUSH_DELAY_MS = 2000;
 
@@ -656,8 +670,21 @@ function DictationPractice({
   const [playing, setPlaying] = useState(false);
   const [playerError, setPlayerError] = useState<string | null>(null);
 
+  const [mode, setMode] = useState<PracticeMode>(() =>
+    window.localStorage.getItem(MODE_KEY) === "shadow" ? "shadow" : "dictation"
+  );
+
   const playerRef = useRef<YouTubePlayerHandle>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  /** Chế độ Shadowing đặt hàm xử lý "hết câu" vào đây */
+  const segmentEndRef = useRef<(() => void) | null>(null);
+
+  const changeMode = (m: PracticeMode) => {
+    if (m === mode) return;
+    playerRef.current?.pause();
+    setMode(m);
+    window.localStorage.setItem(MODE_KEY, m);
+  };
 
   const seg = segments[index];
   const typed = inputs[seg.id] ?? "";
@@ -733,6 +760,7 @@ function DictationPractice({
   // Phím tắt toàn trang: Ctrl+Space nghe lại, Alt+←/→ đổi câu
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (mode !== "dictation") return; // Shadowing có phím tắt riêng
       if (e.ctrlKey && e.code === "Space") {
         e.preventDefault();
         playerRef.current?.playSegment(seg.start, seg.end);
@@ -756,17 +784,26 @@ function DictationPractice({
     }
   };
 
+  const timingControls = (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500">
+      <span title="Bấm +/− nếu câu bị cắt hụt hoặc lẫn tiếng câu khác">Mốc câu này:</span>
+      <TimeNudge label="Đầu" value={seg.start} onMinus={() => nudge(-0.5, 0)} onPlus={() => nudge(0.5, 0)} />
+      <TimeNudge label="Cuối" value={seg.end} onMinus={() => nudge(0, -0.5)} onPlus={() => nudge(0, 0.5)} />
+    </div>
+  );
+
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin">
-      <div className="max-w-6xl mx-auto p-4 md:p-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        {/* ---------- Video + thống kê ---------- */}
-        <div className="space-y-4 lg:sticky lg:top-6 self-start">
+      <div className="max-w-6xl mx-auto px-4 pb-4 lg:p-6 grid gap-4 lg:gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-start">
+        {/* ---------- Video — dính đầu màn hình trên điện thoại ---------- */}
+        <div className="sticky top-0 z-30 -mx-4 px-4 pt-3 pb-2 space-y-2 bg-slate-100 dark:bg-[#0b1120] border-b border-slate-300/60 dark:border-slate-800/60 lg:static lg:mx-0 lg:p-0 lg:border-0 lg:bg-transparent lg:col-start-1 lg:row-start-1">
           <div className="relative aspect-video rounded-xl overflow-hidden bg-black">
             <YouTubePlayer
               ref={playerRef}
               videoId={lesson.videoId}
               playbackRate={speed}
               onPlayingChange={setPlaying}
+              onSegmentEnd={() => segmentEndRef.current?.()}
               onError={setPlayerError}
               className="absolute inset-0 [&>iframe]:w-full [&>iframe]:h-full"
             />
@@ -782,235 +819,256 @@ function DictationPractice({
               </span>
             </div>
           )}
-
-          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-            <span>Tốc độ</span>
-            {SPEEDS.map(s => (
-              <button
-                key={s}
-                onClick={() => changeSpeed(s)}
-                className={cn(
-                  "px-2.5 py-1 rounded-lg border tabular-nums transition-colors",
-                  s === speed
-                    ? "bg-blue-600 border-blue-600 text-white"
-                    : "border-slate-300 dark:border-slate-800 hover:bg-slate-200/60 dark:hover:bg-slate-800/60"
-                )}
-              >
-                {s}×
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex gap-1 p-0.5 rounded-lg bg-slate-200/70 dark:bg-slate-900 text-xs">
+              <button onClick={() => changeMode("dictation")} className={modeTabCls(mode === "dictation")}>
+                <PencilLine className="w-3.5 h-3.5" />
+                Chép chính tả
               </button>
-            ))}
-          </div>
-
-          {/* Chỉnh mốc thời gian khi phụ đề lệch tiếng */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500">
-            <span title="Bấm +/− nếu câu bị cắt hụt hoặc lẫn tiếng câu khác">Mốc câu này:</span>
-            <TimeNudge label="Đầu" value={seg.start} onMinus={() => nudge(-0.5, 0)} onPlus={() => nudge(0.5, 0)} />
-            <TimeNudge label="Cuối" value={seg.end} onMinus={() => nudge(0, -0.5)} onPlus={() => nudge(0, 0.5)} />
-          </div>
-
-          <StatsPanel summary={summary} />
-
-          {/* Danh sách câu */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
-              <div className="flex items-center gap-1 p-0.5 rounded-lg bg-slate-200/70 dark:bg-slate-900">
+              <button onClick={() => changeMode("shadow")} className={modeTabCls(mode === "shadow")}>
+                <AudioLines className="w-3.5 h-3.5" />
+                Shadowing
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+              <span>Tốc độ</span>
+              {SPEEDS.map(s => (
                 <button
-                  onClick={() => reviewIds && startRound(null)}
-                  className={cn("px-2.5 py-1 rounded-md", !reviewIds && "bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm")}
-                >
-                  Tất cả ({segments.length})
-                </button>
-                <button
-                  onClick={() => wrongIds.length > 0 && startRound(wrongIds)}
-                  disabled={!reviewIds && wrongIds.length === 0}
+                  key={s}
+                  onClick={() => changeSpeed(s)}
                   className={cn(
-                    "px-2.5 py-1 rounded-md disabled:opacity-40",
-                    reviewIds && "bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm"
+                    "px-2.5 py-1 rounded-lg border tabular-nums transition-colors",
+                    s === speed
+                      ? "bg-blue-600 border-blue-600 text-white"
+                      : "border-slate-300 dark:border-slate-800 hover:bg-slate-200/60 dark:hover:bg-slate-800/60"
                   )}
                 >
-                  Ôn câu sai ({reviewIds ? reviewIds.length : wrongIds.length})
+                  {s}×
                 </button>
-              </div>
-              {summary.attempted > 0 && (
-                <button
-                  onClick={() => {
-                    if (!window.confirm("Xóa toàn bộ điểm và thống kê của bài này?")) return;
-                    onResetProgress();
-                    startRound(null);
-                  }}
-                  className="flex items-center gap-1 hover:text-slate-900 dark:hover:text-slate-100"
-                >
-                  <RotateCcw className="w-3 h-3" />
-                  Xóa điểm
-                </button>
-              )}
+              ))}
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {segments.map((s, i) => {
-                const st = stats[s.id];
-                const inRound = activeIndices.includes(i);
-                return (
-                  <button
-                    key={s.id}
-                    onClick={() => goTo(i)}
-                    title={
-                      `${formatTimestamp(s.start)}` +
-                      (st ? ` · lần đầu ${st.revealed ? "xem đáp án" : `${st.roundScore ?? "-"}%`} · ${st.attempts} lần thử` : "")
-                    }
-                    className={cn(
-                      "w-9 h-9 rounded-lg border text-xs font-semibold tabular-nums transition-colors",
-                      STATUS_CLASS[segmentStatus(st)],
-                      i === index && "ring-2 ring-blue-500",
-                      !inRound && "opacity-30"
+          </div>
+        </div>
+
+        {mode === "shadow" ? (
+          <ShadowingPanel
+            className="lg:col-start-2 lg:row-start-1 lg:row-span-2"
+            segments={segments}
+            index={index}
+            onIndexChange={setIndex}
+            playerRef={playerRef}
+            playing={playing}
+            speed={speed}
+            segmentEndRef={segmentEndRef}
+            timingControls={timingControls}
+          />
+        ) : (
+          <>
+            {/* ---------- Nghe & chép ---------- */}
+            <div className="space-y-4 lg:col-start-2 lg:row-start-1 lg:row-span-2">
+              <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-300/60 dark:border-slate-800/60 p-4 md:p-5 space-y-4">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-semibold">
+                    Câu {index + 1}
+                    <span className="text-slate-500 font-normal">/{segments.length}</span>
+                    {reviewIds && (
+                      <span className="ml-2 px-1.5 py-0.5 rounded bg-red-500/15 text-red-700 dark:text-red-400 text-[11px] font-semibold">
+                        Đang ôn câu sai
+                      </span>
                     )}
-                  >
-                    {i + 1}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="flex flex-wrap gap-x-3 text-[11px] text-slate-500">
-              <Legend cls={STATUS_CLASS.correct} label="Đúng ngay lần đầu" />
-              <Legend cls={STATUS_CLASS.wrong} label="Sai / xem đáp án" />
-              <Legend cls={STATUS_CLASS.new} label="Chưa làm" />
-            </p>
-          </div>
-        </div>
-
-        {/* ---------- Nghe & chép ---------- */}
-        <div className="space-y-4">
-          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-300/60 dark:border-slate-800/60 p-4 md:p-5 space-y-4">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm font-semibold">
-                Câu {index + 1}
-                <span className="text-slate-500 font-normal">/{segments.length}</span>
-                {reviewIds && (
-                  <span className="ml-2 px-1.5 py-0.5 rounded bg-red-500/15 text-red-700 dark:text-red-400 text-[11px] font-semibold">
-                    Đang ôn câu sai
                   </span>
+                  <span className="text-xs text-slate-500 font-mono tabular-nums">
+                    {formatTimestamp(seg.start)} – {formatTimestamp(seg.end)}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button onClick={() => play()} title="Nghe câu này (Ctrl+Space)" className={cn(btnPrimary, "flex-1 px-4 py-3")}>
+                    <Volume2 className={cn("w-5 h-5", playing && "animate-pulse")} />
+                    {playing ? "Đang phát…" : "Nghe"}
+                  </button>
+                  <button
+                    onClick={() => goTo(prevIndex)}
+                    disabled={prevIndex === undefined}
+                    title="Câu trước (Alt+←)"
+                    className={cn(btnGhost, "w-11 h-11")}
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => goTo(nextIndex)}
+                    disabled={nextIndex === undefined}
+                    title="Câu tiếp (Alt+→)"
+                    className={cn(btnGhost, "w-11 h-11")}
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <textarea
+                  ref={inputRef}
+                  value={typed}
+                  onChange={e => setInputs(m => ({ ...m, [seg.id]: e.target.value }))}
+                  onKeyDown={onInputKey}
+                  rows={3}
+                  autoFocus
+                  spellCheck={false}
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  placeholder="Gõ lại những gì bạn nghe được… (Enter để kiểm tra)"
+                  className={cn(inputCls, "py-3 text-base leading-relaxed resize-y")}
+                />
+
+                {hint > 0 && !solved && (
+                  <p className="text-sm font-mono tracking-wide text-slate-500 bg-slate-100 dark:bg-slate-800/60 rounded-lg px-3 py-2 break-words">
+                    {buildHint(seg.text, typed, hint === 1 ? 1 : 2)}
+                  </p>
                 )}
-              </span>
-              <span className="text-xs text-slate-500 font-mono tabular-nums">
-                {formatTimestamp(seg.start)} – {formatTimestamp(seg.end)}
-              </span>
-            </div>
 
-            <div className="flex items-center gap-2">
-              <button onClick={() => play()} title="Nghe câu này (Ctrl+Space)" className={cn(btnPrimary, "flex-1 px-4 py-3")}>
-                <Volume2 className={cn("w-5 h-5", playing && "animate-pulse")} />
-                {playing ? "Đang phát…" : "Nghe"}
-              </button>
-              <button
-                onClick={() => goTo(prevIndex)}
-                disabled={prevIndex === undefined}
-                title="Câu trước (Alt+←)"
-                className={cn(btnGhost, "w-11 h-11")}
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => goTo(nextIndex)}
-                disabled={nextIndex === undefined}
-                title="Câu tiếp (Alt+→)"
-                className={cn(btnGhost, "w-11 h-11")}
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button onClick={check} disabled={!typed.trim() || solved} className={cn(btnPrimary, "px-4 py-2")}>
+                    <Check className="w-4 h-4" />
+                    Kiểm tra
+                  </button>
+                  <button
+                    onClick={() => setHintLevel(h => ({ ...h, [seg.id]: hint >= 2 ? 2 : ((hint + 1) as 1 | 2) }))}
+                    disabled={solved || hint >= 2}
+                    className={cn(btnGhost, "px-3 py-2")}
+                  >
+                    <Lightbulb className="w-4 h-4" />
+                    Gợi ý{hint > 0 ? ` (${hint}/2)` : ""}
+                  </button>
+                  <button
+                    onClick={reveal}
+                    disabled={isRevealed}
+                    title="Câu này sẽ bị tính là sai"
+                    className={cn(btnGhost, "px-3 py-2")}
+                  >
+                    <Eye className="w-4 h-4" />
+                    Xem đáp án
+                  </button>
+                  {segStats && (
+                    <span className="ml-auto text-[11px] text-slate-500 tabular-nums">
+                      {segStats.attempts} lần thử · cao nhất {segStats.best}%
+                    </span>
+                  )}
+                </div>
 
-            <textarea
-              ref={inputRef}
-              value={typed}
-              onChange={e => setInputs(m => ({ ...m, [seg.id]: e.target.value }))}
-              onKeyDown={onInputKey}
-              rows={3}
-              autoFocus
-              spellCheck={false}
-              autoCapitalize="off"
-              autoCorrect="off"
-              placeholder="Gõ lại những gì bạn nghe được… (Enter để kiểm tra)"
-              className={cn(inputCls, "py-3 text-base leading-relaxed resize-y")}
-            />
+                {result && <ResultView result={result} showAnswer={solved} />}
 
-            {hint > 0 && !solved && (
-              <p className="text-sm font-mono tracking-wide text-slate-500 bg-slate-100 dark:bg-slate-800/60 rounded-lg px-3 py-2 break-words">
-                {buildHint(seg.text, typed, hint === 1 ? 1 : 2)}
-              </p>
-            )}
+                {solved && (
+                  <div className="space-y-2 rounded-xl bg-slate-100 dark:bg-slate-800/50 px-4 py-3">
+                    <p className="text-base leading-relaxed">{seg.text}</p>
+                    {seg.translation &&
+                      (showTranslation ? (
+                        <p className="text-sm text-slate-500 italic">{seg.translation}</p>
+                      ) : (
+                        <button
+                          onClick={() => setShowTranslation(true)}
+                          className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          <Languages className="w-3.5 h-3.5" />
+                          Xem nghĩa tiếng Việt
+                        </button>
+                      ))}
+                  </div>
+                )}
 
-            <div className="flex flex-wrap items-center gap-2">
-              <button onClick={check} disabled={!typed.trim() || solved} className={cn(btnPrimary, "px-4 py-2")}>
-                <Check className="w-4 h-4" />
-                Kiểm tra
-              </button>
-              <button
-                onClick={() => setHintLevel(h => ({ ...h, [seg.id]: hint >= 2 ? 2 : ((hint + 1) as 1 | 2) }))}
-                disabled={solved || hint >= 2}
-                className={cn(btnGhost, "px-3 py-2")}
-              >
-                <Lightbulb className="w-4 h-4" />
-                Gợi ý{hint > 0 ? ` (${hint}/2)` : ""}
-              </button>
-              <button
-                onClick={reveal}
-                disabled={isRevealed}
-                title="Câu này sẽ bị tính là sai"
-                className={cn(btnGhost, "px-3 py-2")}
-              >
-                <Eye className="w-4 h-4" />
-                Xem đáp án
-              </button>
-              {segStats && (
-                <span className="ml-auto text-[11px] text-slate-500 tabular-nums">
-                  {segStats.attempts} lần thử · cao nhất {segStats.best}%
-                </span>
-              )}
-            </div>
-
-            {result && <ResultView result={result} showAnswer={solved} />}
-
-            {solved && (
-              <div className="space-y-2 rounded-xl bg-slate-100 dark:bg-slate-800/50 px-4 py-3">
-                <p className="text-base leading-relaxed">{seg.text}</p>
-                {seg.translation &&
-                  (showTranslation ? (
-                    <p className="text-sm text-slate-500 italic">{seg.translation}</p>
-                  ) : (
-                    <button
-                      onClick={() => setShowTranslation(true)}
-                      className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                    >
-                      <Languages className="w-3.5 h-3.5" />
-                      Xem nghĩa tiếng Việt
-                    </button>
-                  ))}
+                {solved && !isLastInRound && (
+                  <button onClick={() => goTo(nextIndex)} className={cn(btnPrimary, "w-full px-4 py-3")}>
+                    Câu tiếp
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                )}
               </div>
-            )}
+              {solved && isLastInRound && (
+                <RoundSummary
+                  summary={summary}
+                  reviewing={!!reviewIds}
+                  wrongCount={wrongIds.length}
+                  onReviewWrong={() => startRound(wrongIds)}
+                  onRestart={() => startRound(null)}
+                />
+              )}
 
-            {solved && !isLastInRound && (
-              <button onClick={() => goTo(nextIndex)} className={cn(btnPrimary, "w-full px-4 py-3")}>
-                Câu tiếp
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            )}
-          </div>
+              <p className="hidden md:block text-[11px] text-slate-500 leading-relaxed">
+                Phím tắt: <b>Enter</b> kiểm tra / sang câu tiếp · <b>Ctrl+Space</b> nghe lại · <b>Alt+←/→</b> đổi câu.
+                Không phân biệt hoa/thường và dấu câu. Lần kiểm tra <b>đầu tiên</b> đạt từ {PASS_THRESHOLD}% mới tính là
+                đúng; xem đáp án tính là sai.
+              </p>
+            </div>
 
-          {solved && isLastInRound && (
-            <RoundSummary
-              summary={summary}
-              reviewing={!!reviewIds}
-              wrongCount={wrongIds.length}
-              onReviewWrong={() => startRound(wrongIds)}
-              onRestart={() => startRound(null)}
-            />
-          )}
-
-          <p className="text-[11px] text-slate-500 leading-relaxed">
-            Phím tắt: <b>Enter</b> kiểm tra / sang câu tiếp · <b>Ctrl+Space</b> nghe lại · <b>Alt+←/→</b> đổi câu.
-            Không phân biệt hoa/thường và dấu câu. Lần kiểm tra <b>đầu tiên</b> đạt từ {PASS_THRESHOLD}% mới tính là
-            đúng; xem đáp án tính là sai.
-          </p>
-        </div>
+            {/* ---------- Thống kê + danh sách câu ---------- */}
+            <div className="space-y-4 lg:col-start-1 lg:row-start-2">
+              {timingControls}
+              <StatsPanel summary={summary} />
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
+                  <div className="flex items-center gap-1 p-0.5 rounded-lg bg-slate-200/70 dark:bg-slate-900">
+                    <button
+                      onClick={() => reviewIds && startRound(null)}
+                      className={cn("px-2.5 py-1 rounded-md", !reviewIds && "bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm")}
+                    >
+                      Tất cả ({segments.length})
+                    </button>
+                    <button
+                      onClick={() => wrongIds.length > 0 && startRound(wrongIds)}
+                      disabled={!reviewIds && wrongIds.length === 0}
+                      className={cn(
+                        "px-2.5 py-1 rounded-md disabled:opacity-40",
+                        reviewIds && "bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm"
+                      )}
+                    >
+                      Ôn câu sai ({reviewIds ? reviewIds.length : wrongIds.length})
+                    </button>
+                  </div>
+                  {summary.attempted > 0 && (
+                    <button
+                      onClick={() => {
+                        if (!window.confirm("Xóa toàn bộ điểm và thống kê của bài này?")) return;
+                        onResetProgress();
+                        startRound(null);
+                      }}
+                      className="flex items-center gap-1 hover:text-slate-900 dark:hover:text-slate-100"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      Xóa điểm
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {segments.map((s, i) => {
+                    const st = stats[s.id];
+                    const inRound = activeIndices.includes(i);
+                    return (
+                      <button
+                        key={s.id}
+                        onClick={() => goTo(i)}
+                        title={
+                          `${formatTimestamp(s.start)}` +
+                          (st ? ` · lần đầu ${st.revealed ? "xem đáp án" : `${st.roundScore ?? "-"}%`} · ${st.attempts} lần thử` : "")
+                        }
+                        className={cn(
+                          "w-8 h-8 sm:w-9 sm:h-9 rounded-lg border text-xs font-semibold tabular-nums transition-colors",
+                          STATUS_CLASS[segmentStatus(st)],
+                          i === index && "ring-2 ring-blue-500",
+                          !inRound && "opacity-30"
+                        )}
+                      >
+                        {i + 1}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="flex flex-wrap gap-x-3 text-[11px] text-slate-500">
+                  <Legend cls={STATUS_CLASS.correct} label="Đúng ngay lần đầu" />
+                  <Legend cls={STATUS_CLASS.wrong} label="Sai / xem đáp án" />
+                  <Legend cls={STATUS_CLASS.new} label="Chưa làm" />
+                </p>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
