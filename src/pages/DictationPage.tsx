@@ -265,7 +265,7 @@ export function DictationPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-100 dark:bg-[#0b1120] text-slate-900 dark:text-slate-100">
+    <div className="h-full flex flex-col bg-slate-100 dark:bg-[#0b1120] text-slate-900 dark:text-slate-100">
       <header className="h-16 flex items-center gap-3 pl-16 pr-4 md:px-6 shrink-0 border-b border-slate-300/60 dark:border-slate-800/60">
         {(creating || lesson) && (
           <button onClick={backToList} title="Về danh sách bài" className={cn(btnGhost, "w-10 h-10 shrink-0")}>
@@ -831,7 +831,7 @@ function DictationPractice({
               </button>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-              <span>Tốc độ</span>
+              <span className="hidden sm:inline">Tốc độ</span>
               {SPEEDS.map(s => (
                 <button
                   key={s}

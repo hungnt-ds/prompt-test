@@ -6,7 +6,7 @@ import { Sidebar } from "@/components/Sidebar";
 /**
  * Shell shared by every route.
  * Desktop (≥ md): persistent left sidebar.
- * Mobile: sidebar ẩn, thay bằng nút menu nổi mở drawer trượt từ trái.
+ * Mobile: sidebar ẩn, thay bằng nút menu ở góc header mở drawer trượt từ trái.
  */
 export function AppLayout() {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -18,14 +18,6 @@ export function AppLayout() {
         <Sidebar />
       </div>
 
-      {/* Mobile: menu button ở góc trái header (các trang chừa sẵn pl-16) */}
-      <button
-        onClick={() => setDrawerOpen(true)}
-        title="Mở menu"
-        className="md:hidden fixed top-3 left-3 z-40 flex items-center justify-center w-10 h-10 rounded-lg bg-blue-600 text-white shadow-md shadow-blue-600/30 active:scale-95 transition-transform"
-      >
-        <Menu className="w-5 h-5" />
-      </button>
 
       {/* Mobile: drawer */}
       {drawerOpen && (
@@ -47,7 +39,16 @@ export function AppLayout() {
         </div>
       )}
 
-      <main className="flex-1 min-w-0 h-screen overflow-y-auto">
+      <main className="relative flex-1 min-w-0 h-screen overflow-y-auto">
+        {/* Mobile: nút menu nằm ở góc trái header (các trang chừa sẵn pl-16) và cuộn theo trang,
+            không nổi đè lên nội dung */}
+        <button
+          onClick={() => setDrawerOpen(true)}
+          title="Mở menu"
+          className="md:hidden absolute top-3 left-3 z-40 flex items-center justify-center w-10 h-10 rounded-lg bg-blue-600 text-white shadow-md shadow-blue-600/30 active:scale-95 transition-transform"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
         <Outlet />
       </main>
     </div>

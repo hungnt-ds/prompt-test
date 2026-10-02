@@ -76,6 +76,8 @@ const ERROR_MESSAGES: Record<number, string> = {
 export interface YouTubePlayerHandle {
   /** Tua tới start, phát, tự dừng ở end. */
   playSegment(start: number, end: number): void;
+  /** Tua tới start rồi phát tiếp, không tự dừng (nghe liên tục). */
+  playFrom(start: number): void;
   play(): void;
   pause(): void;
   seek(seconds: number): void;
@@ -196,6 +198,13 @@ export function YouTubePlayer({
       playSegment(start, end) {
         run(p => {
           stopAtRef.current = end;
+          p.seekTo(start, true);
+          p.playVideo();
+        });
+      },
+      playFrom(start) {
+        run(p => {
+          stopAtRef.current = null;
           p.seekTo(start, true);
           p.playVideo();
         });

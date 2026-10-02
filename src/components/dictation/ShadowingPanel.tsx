@@ -4,6 +4,7 @@ import {
   Eye,
   EyeOff,
   Languages,
+  ListVideo,
   Pause,
   Play,
   Repeat,
@@ -18,16 +19,22 @@ import type { YouTubePlayerHandle } from "@/components/dictation/YouTubePlayer";
 import { formatTimestamp } from "@/utils/subtitleParser";
 
 // ============================================================
-// Shadowing: phát từng câu, nghỉ một khoảng để nói theo, lặp lại
-// N lần rồi tự sang câu tiếp. Câu hiện tại + toàn bộ phụ đề ở giữa,
-// thanh điều khiển dính đáy màn hình (dùng một tay trên điện thoại).
+// Shadowing — hai cách phát:
+//  - Từng câu: phát một câu, nghỉ một khoảng để nói theo, lặp N lần
+//    rồi (tuỳ chọn) tự sang câu tiếp.
+//  - Liên tục: video chạy một mạch không dừng, phụ đề tự tô sáng và
+//    cuộn theo câu đang nói; ⏮ ⏭ ↺ vẫn tua theo câu.
+// Video dính đầu, thanh điều khiển dính đáy, phụ đề cuộn ở giữa.
 // ============================================================
 
 const REPEATS = [1, 2, 3, 0] as const; // 0 = lặp mãi
 const GAPS = [0, 1, 2] as const; // khoảng nghỉ = n × độ dài câu
 const SETTINGS_KEY = "dictation:shadow";
 
+type PlayMode = "sentence" | "continuous";
+
 interface Settings {
+  playMode: PlayMode;
   repeat: (typeof REPEATS)[number];
   gap: (typeof GAPS)[number];
   autoNext: boolean;
@@ -35,12 +42,20 @@ interface Settings {
   showTranslation: boolean;
 }
 
-const DEFAULTS: Settings = { repeat: 2, gap: 1, autoNext: true, hideText: false, showTranslation: false };
+const DEFAULTS: Settings = {
+  playMode: "sentence",
+  repeat: 2,
+  gap: 1,
+  autoNext: true,
+  hideText: false,
+  showTranslation: false,
+};
 
 function loadSettings(): Settings {
   try {
     const raw = JSON.parse(window.localStorage.getItem(SETTINGS_KEY) ?? "{}") as Partial<Settings>;
     return {
+      playMode: raw.playMode === "continuous" ? "continuous" : "sentence",
       repeat: REPEATS.includes(raw.repeat as Settings["repeat"]) ? (raw.repeat as Settings["repeat"]) : DEFAULTS.repeat,
       gap: GAPS.includes(raw.gap as Settings["gap"]) ? (raw.gap as Settings["gap"]) : DEFAULTS.gap,
       autoNext: raw.autoNext ?? DEFAULTS.autoNext,
@@ -50,6 +65,13 @@ function loadSettings(): Settings {
   } catch {
     return DEFAULTS;
   }
+}
+
+/** Câu đang nói tại thời điểm t: câu cuối cùng đã bắt đầu. */
+function segmentAt(segments: DictationSegment[], t: number): number {
+  let i = 0;
+  while (i + 1 < segments.length && segments[i + 1].start <= t + 0.05) i++;
+  return i;
 }
 
 interface ShadowingPanelProps {
@@ -78,17 +100,18 @@ export function ShadowingPanel({
   className,
 }: ShadowingPanelProps) {
   const [settings, setSettings] = useState<Settings>(loadSettings);
-  /** Đang chạy phiên tự động (lặp / tự sang câu) */
+  /** Đang chạy phiên tự động của chế độ từng câu (lặp / tự sang câu) */
   const [running, setRunning] = useState(false);
   const [rep, setRep] = useState(1);
   /** Bấm vào câu đang ẩn để xem tạm — chỉ cho câu này */
   const [peekIndex, setPeekIndex] = useState(-1);
 
+  const continuous = settings.playMode === "continuous";
   const runningRef = useRef(false);
   const repRef = useRef(1);
   const timerRef = useRef<number | undefined>(undefined);
   const rowRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  // Giá trị mới nhất cho callback hết câu (đăng ký một lần, chạy sau nhiều lần render)
+  // Giá trị mới nhất cho các callback chạy sau nhiều lần render
   const latest = useRef({ segments, index, settings, speed, onIndexChange });
   useEffect(() => {
     latest.current = { segments, index, settings, speed, onIndexChange };
@@ -111,11 +134,6 @@ export function ShadowingPanel({
     timerRef.current = undefined;
   };
 
-  const playAt = (i: number) => {
-    const s = latest.current.segments[i];
-    if (s) playerRef.current?.playSegment(s.start, s.end);
-  };
-
   const setRunningBoth = (v: boolean) => {
     runningRef.current = v;
     setRunning(v);
@@ -126,10 +144,18 @@ export function ShadowingPanel({
     setRep(1);
   };
 
+  /** Phát câu i: liên tục thì chạy tiếp qua các câu sau, từng câu thì dừng cuối câu. */
+  const playAt = (i: number) => {
+    const s = latest.current.segments[i];
+    if (!s) return;
+    if (latest.current.settings.playMode === "continuous") playerRef.current?.playFrom(s.start);
+    else playerRef.current?.playSegment(s.start, s.end);
+  };
+
   const start = () => {
     clearTimer();
     resetRep();
-    setRunningBoth(true);
+    if (!continuous) setRunningBoth(true);
     playAt(index);
   };
 
@@ -148,7 +174,16 @@ export function ShadowingPanel({
     playAt(i);
   };
 
-  // Hết một câu → nghỉ để nói theo → lặp lại hoặc sang câu tiếp
+  const changePlayMode = (playMode: PlayMode) => {
+    if (playMode === settings.playMode) return;
+    stop();
+    update({ playMode });
+  };
+
+  /** Liên tục: nút lớn theo trạng thái video. Từng câu: theo phiên tự động. */
+  const isActive = continuous ? playing : running;
+
+  // Từng câu: hết một câu → nghỉ để nói theo → lặp lại hoặc sang câu tiếp
   useEffect(() => {
     segmentEndRef.current = () => {
       if (!runningRef.current) return;
@@ -179,6 +214,18 @@ export function ShadowingPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Liên tục: theo dõi thời gian video để tô sáng câu đang nói
+  useEffect(() => {
+    if (!continuous || !playing) return;
+    const t = window.setInterval(() => {
+      const time = playerRef.current?.getCurrentTime() ?? 0;
+      const { segments: segs, index: i, onIndexChange: change } = latest.current;
+      const at = segmentAt(segs, time);
+      if (at !== i) change(at);
+    }, 250);
+    return () => window.clearInterval(t);
+  }, [continuous, playing, playerRef]);
+
   // Câu đang phát luôn nằm trong tầm nhìn
   useEffect(() => {
     rowRefs.current[index]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -191,7 +238,7 @@ export function ShadowingPanel({
       if (e.ctrlKey || e.altKey || e.metaKey) return;
       if (e.code === "Space") {
         e.preventDefault();
-        if (runningRef.current) stop();
+        if (isActive) stop();
         else start();
       } else if (e.key === "ArrowRight") {
         e.preventDefault();
@@ -211,16 +258,16 @@ export function ShadowingPanel({
   const repeatLabel = settings.repeat === 0 ? "∞" : String(settings.repeat);
 
   return (
-    <div className={cn("flex flex-col gap-4", className)}>
+    <div className={cn("flex flex-col gap-3 lg:gap-4", className)}>
       {/* Câu hiện tại */}
-      <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-300/60 dark:border-slate-800/60 p-4 md:p-5 space-y-3">
+      <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-300/60 dark:border-slate-800/60 p-3 md:p-5 space-y-2 md:space-y-3">
         <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
           <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
             Câu {index + 1}
             <span className="text-slate-500 font-normal">/{segments.length}</span>
           </span>
           <span className="flex items-center gap-3 tabular-nums">
-            {running && (
+            {running && !continuous && (
               <span className="px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-700 dark:text-blue-300 font-semibold">
                 Lặp {rep}/{repeatLabel}
               </span>
@@ -233,7 +280,7 @@ export function ShadowingPanel({
         <button
           onClick={() => settings.hideText && setPeekIndex(peekIndex === index ? -1 : index)}
           className={cn(
-            "block w-full text-left text-xl md:text-2xl font-semibold leading-snug transition-[filter]",
+            "block w-full text-left text-lg md:text-2xl font-semibold leading-snug transition-[filter]",
             !textVisible && "blur-md select-none",
             !settings.hideText && "cursor-default"
           )}
@@ -244,10 +291,10 @@ export function ShadowingPanel({
         {settings.showTranslation && seg.translation && (
           <p className="text-sm text-slate-500 italic">{seg.translation}</p>
         )}
-        <div className="pt-1">{timingControls}</div>
+        <div className="hidden md:block pt-1">{timingControls}</div>
       </div>
 
-      {/* Toàn bộ phụ đề */}
+      {/* Toàn bộ phụ đề — tự cuộn theo câu đang phát */}
       <ol className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-300/60 dark:border-slate-800/60 divide-y divide-slate-200 dark:divide-slate-800 lg:max-h-[45vh] lg:overflow-y-auto scrollbar-thin">
         {segments.map((s, i) => (
           <li key={s.id}>
@@ -257,13 +304,13 @@ export function ShadowingPanel({
               }}
               onClick={() => jump(i)}
               className={cn(
-                "w-full flex gap-3 px-3 py-2.5 text-left text-sm transition-colors scroll-mt-[calc(56.25vw+6rem)] scroll-mb-40 lg:scroll-m-2",
+                "w-full flex gap-3 px-3 py-2.5 text-left text-sm transition-colors scroll-mt-[calc(56.25vw+5rem)] scroll-mb-36 lg:scroll-m-2",
                 i === index
-                  ? "bg-blue-500/10 text-slate-900 dark:text-slate-100"
+                  ? "bg-blue-500/15 text-slate-900 dark:text-slate-100 font-medium"
                   : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50"
               )}
             >
-              <span className="w-12 shrink-0 font-mono text-xs text-slate-500 tabular-nums pt-0.5">
+              <span className="w-11 shrink-0 font-mono text-xs text-slate-500 tabular-nums pt-0.5">
                 {formatTimestamp(s.start)}
               </span>
               <span className={cn(settings.hideText && i !== index && "blur-sm select-none")}>{s.text}</span>
@@ -271,30 +318,46 @@ export function ShadowingPanel({
           </li>
         ))}
       </ol>
+      <div className="md:hidden">{timingControls}</div>
 
       {/* Thanh điều khiển — dính đáy màn hình */}
-      <div className="sticky bottom-0 z-20 -mx-4 lg:mx-0 px-4 lg:px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:pb-3 bg-slate-100/95 dark:bg-[#0b1120]/95 lg:rounded-2xl lg:bg-white lg:dark:bg-slate-900 lg:border lg:border-slate-300/60 lg:dark:border-slate-800/60 backdrop-blur border-t border-slate-300/60 dark:border-slate-800/60 space-y-2">
-        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-[11px] text-slate-500">
+      <div className="sticky bottom-0 z-20 -mx-4 lg:mx-0 px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:pb-3 bg-slate-100/95 dark:bg-[#0b1120]/95 lg:rounded-2xl lg:bg-white lg:dark:bg-slate-900 lg:border lg:border-slate-300/60 lg:dark:border-slate-800/60 backdrop-blur border-t border-slate-300/60 dark:border-slate-800/60 space-y-2">
+        {/* Cài đặt: một hàng, vuốt ngang khi chật */}
+        <div className="flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden text-[11px] text-slate-500 lg:flex-wrap lg:justify-center whitespace-nowrap">
           <Segmented
-            icon={<Repeat className="w-3.5 h-3.5" />}
-            title="Số lần nghe mỗi câu"
-            options={REPEATS.map(r => ({ value: r, label: r === 0 ? "∞" : `${r}×` }))}
-            value={settings.repeat}
-            onChange={repeat => update({ repeat })}
+            icon={<ListVideo className="w-3.5 h-3.5" />}
+            title="Cách phát"
+            options={[
+              { value: "sentence" as PlayMode, label: "Từng câu" },
+              { value: "continuous" as PlayMode, label: "Liên tục" },
+            ]}
+            value={settings.playMode}
+            onChange={changePlayMode}
           />
-          <Segmented
-            icon={<Timer className="w-3.5 h-3.5" />}
-            title="Khoảng nghỉ để nói theo (so với độ dài câu)"
-            options={GAPS.map(g => ({ value: g, label: g === 0 ? "0" : `${g}×` }))}
-            value={settings.gap}
-            onChange={gap => update({ gap })}
-          />
-          <Toggle
-            on={settings.autoNext}
-            onClick={() => update({ autoNext: !settings.autoNext })}
-            icon={<ChevronsRight className="w-3.5 h-3.5" />}
-            label="Tự sang câu"
-          />
+          {!continuous && (
+            <>
+              <Segmented
+                icon={<Repeat className="w-3.5 h-3.5" />}
+                title="Số lần nghe mỗi câu"
+                options={REPEATS.map(r => ({ value: r, label: r === 0 ? "∞" : `${r}×` }))}
+                value={settings.repeat}
+                onChange={repeat => update({ repeat })}
+              />
+              <Segmented
+                icon={<Timer className="w-3.5 h-3.5" />}
+                title="Khoảng nghỉ để nói theo (so với độ dài câu)"
+                options={GAPS.map(g => ({ value: g, label: g === 0 ? "0" : `${g}×` }))}
+                value={settings.gap}
+                onChange={gap => update({ gap })}
+              />
+              <Toggle
+                on={settings.autoNext}
+                onClick={() => update({ autoNext: !settings.autoNext })}
+                icon={<ChevronsRight className="w-3.5 h-3.5" />}
+                label="Tự sang câu"
+              />
+            </>
+          )}
           <Toggle
             on={settings.hideText}
             onClick={() => update({ hideText: !settings.hideText })}
@@ -308,7 +371,7 @@ export function ShadowingPanel({
             label="Nghĩa"
           />
         </div>
-        <div className="flex items-center justify-center gap-3">
+        <div className="flex items-center justify-center gap-4">
           <IconButton onClick={() => jump(index - 1)} disabled={index === 0} title="Câu trước (←)">
             <SkipBack className="w-5 h-5" />
           </IconButton>
@@ -316,11 +379,11 @@ export function ShadowingPanel({
             <RotateCcw className="w-5 h-5" />
           </IconButton>
           <button
-            onClick={running ? stop : start}
-            title={running ? "Dừng (Space)" : "Phát tự động (Space)"}
-            className="flex items-center justify-center w-16 h-16 rounded-full bg-blue-600 text-white hover:bg-blue-500 active:scale-95 transition-all shadow-md shadow-blue-600/30"
+            onClick={isActive ? stop : start}
+            title={isActive ? "Dừng (Space)" : continuous ? "Phát liên tục (Space)" : "Phát tự động (Space)"}
+            className="flex items-center justify-center w-14 h-14 rounded-full bg-blue-600 text-white hover:bg-blue-500 active:scale-95 transition-all shadow-md shadow-blue-600/30"
           >
-            {running ? <Pause className="w-7 h-7" /> : <Play className={cn("w-7 h-7 ml-1", playing && "animate-pulse")} />}
+            {isActive ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6 ml-0.5" />}
           </button>
           <IconButton onClick={() => jump(index + 1)} disabled={index >= segments.length - 1} title="Câu tiếp (→)">
             <SkipForward className="w-5 h-5" />
@@ -347,14 +410,14 @@ function IconButton({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className="flex items-center justify-center w-12 h-12 rounded-full text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300/60 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"
+      className="flex items-center justify-center w-11 h-11 rounded-full text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300/60 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"
     >
       {children}
     </button>
   );
 }
 
-function Segmented<T extends number>({
+function Segmented<T extends string | number>({
   icon,
   title,
   options,
@@ -368,7 +431,7 @@ function Segmented<T extends number>({
   onChange: (v: T) => void;
 }) {
   return (
-    <span className="flex items-center gap-1" title={title}>
+    <span className="flex shrink-0 items-center gap-1" title={title}>
       {icon}
       <span className="flex rounded-lg border border-slate-300 dark:border-slate-700 overflow-hidden">
         {options.map(o => (
@@ -377,9 +440,7 @@ function Segmented<T extends number>({
             onClick={() => onChange(o.value)}
             className={cn(
               "px-2 py-1 tabular-nums transition-colors",
-              o.value === value
-                ? "bg-blue-600 text-white"
-                : "hover:bg-slate-200/60 dark:hover:bg-slate-800/60"
+              o.value === value ? "bg-blue-600 text-white" : "hover:bg-slate-200/60 dark:hover:bg-slate-800/60"
             )}
           >
             {o.label}
@@ -396,7 +457,7 @@ function Toggle({ on, onClick, icon, label }: { on: boolean; onClick: () => void
       onClick={onClick}
       aria-pressed={on}
       className={cn(
-        "flex items-center gap-1 px-2 py-1 rounded-lg border transition-colors",
+        "flex shrink-0 items-center gap-1 px-2 py-1 rounded-lg border transition-colors",
         on
           ? "bg-blue-600 border-blue-600 text-white"
           : "border-slate-300 dark:border-slate-700 hover:bg-slate-200/60 dark:hover:bg-slate-800/60"
