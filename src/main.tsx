@@ -9,6 +9,7 @@ import { IpaExplorerPage } from '@/pages/IpaExplorerPage'
 import { IpaComparePage } from '@/pages/IpaComparePage'
 import { IpaDetailPage } from '@/pages/IpaDetailPage'
 import { ChunkReaderPage } from '@/pages/ChunkReaderPage'
+import { DictationPage } from '@/pages/DictationPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 // Từ vựng
 import { VocabHomePage } from '@/pages/vocab/VocabHomePage'
@@ -38,6 +39,7 @@ createRoot(document.getElementById('root')!).render(
         <Routes>
           <Route element={<AppLayout />}>
             <Route path="/" element={<App />} />
+            <Route path="/dictation" element={<DictationPage />} />
 
             <Route path="/ipa" element={<IpaExplorerPage />} />
             <Route path="/ipa/compare" element={<IpaComparePage />} />
